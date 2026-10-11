@@ -102,11 +102,10 @@ def almacenar_bd():
             conn.execute("""INSERT INTO TEMATICA (TITULO, TEMATICA) VALUES (?,?)""",
                         (titulo, tematica))
 
-    conn.commit()
+            conn.commit()
 
     cursor = conn.execute("SELECT COUNT(*) FROM JUEGOS")
     messagebox.showinfo("Base Datos",
                                              "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
     conn.close()
 
-almacenar_bd()
