@@ -27,7 +27,7 @@ def almacenar_bd():
     conn.execute("DROP TABLE IF EXISTS JUEGOS")
     conn.execute('''CREATE TABLE JUEGOS
        (TITULO            TEXT NOT NULL,
-        PORCENTAJE_VP    DOUBLE        ,
+        PORCENTAJE_VP    INTEGER        ,
         PRECIO      DOUBLE,
         TEMATICA           TEXT,          
         COMPLEJIDAD         TEXT
@@ -78,11 +78,16 @@ def almacenar_bd():
             s_juego = BeautifulSoup(web_juego, 'lxml')
             nombre = s_juego.find("h1", class_ = "page-title").span.get_text()
             porcentaje = s_juego.find("div", class_ = "rating-result")
-            if not porcentaje:
-                porcentaje = 50
             if porcentaje:
                 porcentaje = porcentaje.span.get_text()
-            print(porcentaje)
+                porcentaje = porcentaje.strip().split(" ")[0].replace("%","")
+            if not porcentaje:
+                porcentaje = 50
+            precio = s_juego.find("span", "price-container price-final_price tax weee").find("span", class_ = "price-wrapper").span.get_text()
+            descuento = s_juego.find("div", class_ = "club-badge-info").find("span", class_ = "club-final-price").get_text()
+            if descuento:
+                precio = descuento
+            print(precio)
             
 
 almacenar_bd()
