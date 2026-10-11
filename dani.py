@@ -22,10 +22,10 @@ def cargar():
 
 def almacenar_bd():
 
-    conn = sqlite3.connect('peliculas.db')
+    conn = sqlite3.connect('juegos.db')
     conn.text_factory = str
-    conn.execute("DROP TABLE IF EXISTS PELICULA")
-    conn.execute('''CREATE TABLE PELICULA
+    conn.execute("DROP TABLE IF EXISTS JUEGOS")
+    conn.execute('''CREATE TABLE JUEGOS
        (TITULO            TEXT NOT NULL,
         PORCENTAJE_VP    DOUBLE        ,
         PRECIO      DOUBLE,
