@@ -114,7 +114,7 @@ def imprimir_lista(cursor):
     lb = Listbox(v, width = 150, yscrollcommand=sc.set)
     for row in cursor:
         lb.insert(END,"Título: " + row[0])
-        lb.insert(END," Porcentaje_vp: "+ str(row[1] if row[1]>=0 else "desconocido"))
+        lb.insert(END," Porcentaje_vp: "+ str(row[1] if row[1]!=None else "desconocido"))
         lb.insert(END," Precio: "+ str(row[2]))
         lb.insert(END," Complejidad: "+ str(row[3]) )
         lb.insert(END,"\n\n")
@@ -159,7 +159,7 @@ def listar_juegos():
 def listar_mejores_juegos():
     conn = sqlite3.connect('juegos.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 ORDER BY PORCENTAJE_VP DESC")
+    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 AND PORCENTAJE_VP IS NOT NULL ORDER BY PORCENTAJE_VP DESC")
     imprimir_lista(cursor)
     conn.close()
     
