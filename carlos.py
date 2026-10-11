@@ -28,8 +28,7 @@ def almacenar_bd():
     conn.execute('''CREATE TABLE JUEGOS
        (TITULO            TEXT NOT NULL,
         PORCENTAJE_VP    INTEGER        ,
-        PRECIO      DOUBLE,
-        TEMATICA           TEXT,          
+        PRECIO      DOUBLE,        
         COMPLEJIDAD         TEXT
         );''')
     conn.execute("DROP TABLE IF EXISTS TEMATICA")
@@ -82,12 +81,31 @@ def almacenar_bd():
                 porcentaje = porcentaje.span.get_text()
                 porcentaje = porcentaje.strip().split(" ")[0].replace("%","")
             if not porcentaje:
-                porcentaje = 50
+                porcentaje = None
             precio = s_juego.find("span", "price-container price-final_price tax weee").find("span", class_ = "price-wrapper").span.get_text()
             descuento = s_juego.find("div", class_ = "club-badge-info").find("span", class_ = "club-final-price").get_text()
             if descuento:
                 precio = descuento
-            print(precio)
+            tematica = s_juego.find("div", attrs={"data-th": "Temática"})
+            if tematica:
+                tematica = tematica.get_text().strip().split(" y ")
+                for elemento in tematica:
+                    conn.execute("""INSERT INTO TEMATICA (TITULO, TEMATICA) VALUES (?,?)""",
+                                                      (nombre, elemento))
+                    conn.commit()
+            complejidad = s_juego.find("div", attrs={"data-th": "Complejidad"})
+            if complejidad:
+                complejidad = complejidad.get_text()
+            else:
+                complejidad = None
+            conn.execute("""INSERT INTO JUEGOS (TITULO, PORCENTAJE_VP, PRECIO, COMPLEJIDAD) VALUES (?,?,?,?)""",
+                                  (nombre, porcentaje, precio,complejidad))
+            conn.commit()
+    cursor = conn.execute("SELECT COUNT(*) FROM JUEGOS")
+    messagebox.showinfo("Base Datos",
+                                         "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
+    conn.close()
+            
             
 
 almacenar_bd()
