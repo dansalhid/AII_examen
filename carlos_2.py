@@ -53,7 +53,7 @@ def listar_juegos():
 def listar_mejores_juegos():
     conn = sqlite3.connect('juegos.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 ORDER BY PORCENTAJE_VP ASCENDENT")
+    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 ORDER BY PORCENTAJE_VP")
     imprimir_lista(cursor)
     conn.close()
     
