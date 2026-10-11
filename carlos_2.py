@@ -42,6 +42,21 @@ def imprimir_lista_1(cursor):
         lb.insert(END,"\n\n")
         lb.pack(side=LEFT,fill=BOTH)
     sc.config(command = lb.yview)
+    
+
+def imprimir_lista_2(cursor):
+    v = Toplevel()
+    v.title("LISTADO DE JUEGOS POR COMPLEJIDAD")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,"Título: " + row[0])
+        lb.insert(END," Temáticas: "+ row[1] )
+        lb.insert(END," Complejidad: "+ row[2] )
+        lb.insert(END,"\n\n")
+        lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
 
 def listar_juegos():
     conn = sqlite3.connect('juegos.db')
@@ -59,19 +74,19 @@ def listar_mejores_juegos():
     
 def buscar_por_tematica(): 
     def listar(event):
-        conn = sqlite3.connect('recetas.db')
+        conn = sqlite3.connect('juegos.db')
         conn.text_factory = str
         cursor = conn.execute("SELECT * FROM JUEGOS where TEMATICA LIKE '%" + tematica.get() + "%'")
         conn.close
         imprimir_lista_1(cursor,"tematica "+ tematica.get())
-    conn = sqlite3.connect('recetas.db')
+    conn = sqlite3.connect('juegos.db')
     conn.text_factory = str
     cursor = conn.execute("SELECT DISTINCT TEMATICA FROM JUEGOS")
     
     tematicas = [i[0] for i in cursor]
     
     v = Toplevel()
-    label = Label(v,text="Seleccione el tematica: ")
+    label = Label(v,text="Seleccione la tematica: ")
     label.pack(side=LEFT)
     tematica = Spinbox(v, width= 30, values=tematicas, state='readonly')
     tematica.bind("<Return>", listar)
@@ -81,13 +96,13 @@ def buscar_por_tematica():
     
 def buscar_por_complejidad():
     def listar(event):
-            conn = sqlite3.connect('recetas.db')
+            conn = sqlite3.connect('juegos.db')
             conn.text_factory = str
             cursor = conn.execute("SELECT * FROM JUEGOS where COMPLEJIDAD LIKE '%" + str(complejidad.get()) + "%'")
             conn.close
-            imprimir_lista_1(cursor,"complejidad "+ complejidad.get())
+            imprimir_lista_2(cursor,"complejidad "+ complejidad.get())
             
-    conn = sqlite3.connect('recetas.db')
+    conn = sqlite3.connect('juegos.db')
     conn.text_factory = str
     cursor = conn.execute("SELECT DISTINCT COMPLEJIDAD FROM JUEGOS")
     
