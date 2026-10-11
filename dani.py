@@ -1,5 +1,7 @@
 #encoding:utf-8
 
+from numpy import indices
+
 from bs4 import BeautifulSoup
 import urllib.request
 from tkinter import *
@@ -27,12 +29,47 @@ def almacenar_bd():
     conn.execute("DROP TABLE IF EXISTS JUEGOS")
     conn.execute('''CREATE TABLE JUEGOS
        (TITULO            TEXT NOT NULL,
-        PORCENTAJE_VP    DOUBLE        ,
+        PORCENTAJE_VP    INTEGER        ,
         PRECIO      DOUBLE,
         TEMATICA           TEXT,          
-        COMPLEJIDAD         TEXT,
-        ;''')
+        COMPLEJIDAD         TEXT
+        );''')
+    conn.execute("DROP TABLE IF EXISTS TEMATICA")
+    conn.execute('''CREATE TABLE TEMATICA
+           (TITULO            TEXT NOT NULL,
+            TEMATICA TEXT
+            );''')
 
     
-    f = urllib.request.urlopen("https://zacatrus.es/juegos-de-mesa.html ")
-    s = BeautifulSoup(f, "lxml")
+    indices = [1, 2]
+
+    for i in indices:
+        url = f"https://zacatrus.es/juegos-de-mesa.html?p={i}"
+
+        peticion = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/131.0.0.0 Safari/537.36"
+            }
+        )
+
+        f = urllib.request.urlopen(peticion, timeout=20)
+        s = BeautifulSoup(f, "lxml")
+
+        lista_juegos = s.find_all("li", class_="item product product-item")
+
+        for juego in lista_juegos:
+            enlace = juego.find("a", class_="product-item-link")["href"]
+            titulo = juego.find("a", class_="product-item-link").text.strip()
+
+            if (juego.find("span", class_="club-final-price" )):
+                precio = juego.find("span", class_="club-final-price").text.replace("€", "").strip()
+            else:
+                precio = juego.find("span", class_="price").text.replace("€", "").strip()
+
+            print(precio)
+
+
+almacenar_bd()
