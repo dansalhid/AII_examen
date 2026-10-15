@@ -109,3 +109,160 @@ def almacenar_bd():
                                              "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
     conn.close()
 
+def imprimir_lista(cursor):
+    v = Toplevel()
+    v.title("LISTADO DE JUEGOS")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,"Título: " + row[0])
+        lb.insert(END," Porcentaje_vp: "+ str(row[1] if row[1]!=None else "desconocido"))
+        lb.insert(END," Precio: "+ str(row[2]))
+        lb.insert(END," Complejidad: "+ str(row[3]) )
+        lb.insert(END,"\n\n")
+        lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+
+def imprimir_lista_1(cursor):
+    v = Toplevel()
+    v.title("LISTADO DE JUEGOS POR TEMATICA")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,"Título: " + row[0])
+        lb.insert(END," Temáticas: "+ row[1] )
+        lb.insert(END," Complejidad: "+ str(row[2]) )
+        lb.insert(END,"\n\n")
+        lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+    
+
+def imprimir_lista_2(cursor):
+    v = Toplevel()
+    v.title("LISTADO DE JUEGOS POR COMPLEJIDAD")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,"Título: " + row[0])
+        lb.insert(END," Complejidad: "+ str(row[1]) )
+        lb.insert(END,"\n\n")
+        lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+
+def listar_juegos():
+    conn = sqlite3.connect('juegos.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT * FROM JUEGOS")
+    imprimir_lista(cursor)
+    conn.close()
+
+def listar_mejores_juegos():
+    conn = sqlite3.connect('juegos.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 AND PORCENTAJE_VP IS NOT NULL ORDER BY PORCENTAJE_VP DESC")
+    imprimir_lista(cursor)
+    conn.close()
+    
+def buscar_por_tematica():
+
+    def listar(event=None):
+        conn = sqlite3.connect('juegos.db')
+        conn.text_factory = str
+
+        genero = entry.get()
+
+        cursor = conn.execute("""
+            SELECT DISTINCT L.TITULO, L.PRECIO, L.PORCENTAJE_VP, L.COMPLEJIDAD
+            FROM JUEGOS L
+            INNER JOIN TEMATICA G ON L.TITULO = G.TITULO
+            WHERE G.TEMATICA = ?
+        """, (genero,))
+
+        resultados = cursor.fetchall()
+        conn.close()
+
+        imprimir_lista_1(resultados)
+
+    conn = sqlite3.connect('juegos.db')
+    conn.text_factory = str
+
+    cursor = conn.execute("""
+        SELECT DISTINCT TEMATICA
+        FROM TEMATICA
+        ORDER BY TEMATICA
+    """)
+
+    generos = [fila[0] for fila in cursor.fetchall()]
+    conn.close()
+
+    v = Toplevel()
+    v.title("Buscar por temática")
+
+    label = Label(v, text="Seleccione una temática")
+    label.pack(side=LEFT)
+
+    entry = Spinbox(
+        v,
+        values=generos,
+        state='readonly'
+    )
+    entry.pack(side=LEFT)
+
+    entry.bind("<Return>", listar)
+    
+def buscar_por_complejidad():
+    def listar(event):
+            conn = sqlite3.connect('juegos.db')
+            conn.text_factory = str
+            cursor = conn.execute("SELECT * FROM JUEGOS where COMPLEJIDAD LIKE '%" + str(complejidad.get()) + "%'")
+            conn.close
+            imprimir_lista_2(cursor)
+            
+    conn = sqlite3.connect('juegos.db')
+    conn.text_factory = str
+    cursor = conn.execute("SELECT DISTINCT COMPLEJIDAD FROM JUEGOS WHERE COMPLEJIDAD IS NOT NULL")
+    
+    complejidades = [i[0] for i in cursor]
+    
+    v = Toplevel()
+    label = Label(v,text="Seleccione la complejidad: ")
+    label.pack(side=LEFT)
+    complejidad = Spinbox(v, width= 30, values=complejidades, state='readonly')
+    complejidad.bind("<Return>", listar)
+    complejidad.pack(side=LEFT)
+    
+    conn.close()
+
+def ventana_principal():
+    root = Tk()
+    root.geometry("150x100")
+    
+    menubar = Menu(root)
+    
+    datosmenu = Menu(menubar, tearoff=0)
+    datosmenu.add_command(label="Cargar", command=almacenar_bd)
+    datosmenu.add_separator()
+    datosmenu.add_command(label="Salir", command=root.quit)
+    
+    menubar.add_cascade(label="Datos", menu=datosmenu)
+    
+    listarmenu = Menu(menubar, tearoff=0)
+    listarmenu.add_command(label="Juegos", command=listar_juegos)
+    listarmenu.add_command(label="Mejores juegos", command=listar_mejores_juegos)
+    
+    menubar.add_cascade(label="Listar", menu=listarmenu)
+    
+    buscarmenu = Menu(menubar, tearoff=0)
+    buscarmenu.add_command(label="Juegos por temática", command=buscar_por_tematica)
+    buscarmenu.add_command(label="Juegos por complejidad", command=buscar_por_complejidad)
+    
+    menubar.add_cascade(label="Buscar", menu=buscarmenu)
+    
+    root.config(menu=menubar)
+    root.mainloop()
+    
+if __name__ == "__main__":
+    ventana_principal()
