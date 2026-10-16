@@ -173,7 +173,9 @@ def buscar_por_titulo_o_coleccion():
     def listar(event=None):
             conn = sqlite3.connect('comics.db')
             conn.text_factory = str
-            print(t.get(), ve.get())
+            if (len(entry.get().strip().split(" ")) != 1):
+                messagebox.showerror("Error", "Solo se puede escribir una palabra")
+                return
             if (t.get() and (not ve.get())):
                 cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.TITULO LIKE '%" + entry.get() + "%'")
                 conn.close
