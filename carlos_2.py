@@ -172,24 +172,31 @@ def buscar_por_titulo_o_coleccion():
     def listar(event=None):
             conn = sqlite3.connect('comics.db')
             conn.text_factory = str
-            if (titulo):
+            print(titulo, coleccion)
+            if (titulo and (not coleccion)):
                 cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.TITULO LIKE '%" + entry.get() + "%'")
-                conn.close()
+                conn.close
                 imprimir_lista(cursor)
-            elif (coleccion):
+            if (coleccion and (not titulo)):
                 cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%'")
-                conn.close()
+                conn.close
                 imprimir_lista(cursor)
-            else:
+            if (coleccion and titulo):
                 cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%' OR C.TITULO LIKE '%" + entry.get() + "%'")
-                conn.close()
+                conn.close
                 imprimir_lista(cursor)            
     
     v = Toplevel()
     v.title("Cómics por título o colección") 
 
-    titulo = Checkbutton(v, text="Título", variable=BooleanVar()).pack(side=TOP)
-    coleccion = Checkbutton(v, text="Colección", variable=BooleanVar()).pack(side=TOP)
+    t = BooleanVar()
+    ve = BooleanVar()
+
+    titulo = Checkbutton(v, text="Título", variable=t)
+    titulo.pack(side=TOP)
+    
+    coleccion = Checkbutton(v, text="Colección", variable=ve)
+    coleccion.pack(side=TOP)
 
     Label(v, text="Introduce una palabra:").pack(side=TOP)
 
