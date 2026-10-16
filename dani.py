@@ -58,6 +58,11 @@ def almacenar_bd():
 
         autores = s2.find("div", class_="panel-propiedades-producto").find("li", class_="autores").find("span", class_="valor-propiedad").text.strip()
 
-        print(titulo, autores)
+        autores_lista = []
+        for autor in autores.split("-"):
+            autores_lista.append(autor.strip())
 
-almacenar_bd()
+        print(titulo, autores_lista)
+
+def obtener_descuento(precio_original, precio_descuento):
+    return round((precio_original - precio_descuento) / precio_original * 100, 2)
