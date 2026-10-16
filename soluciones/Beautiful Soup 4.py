@@ -170,7 +170,7 @@ def buscar_por_genero():
         cursor = conn.execute("""
             SELECT DISTINCT L.TITULO, L.PRECIO, L.FECHA, L.AUTOR, L.URL
             FROM LIBROS L
-            INNER JOIN GENEROS G ON L.TITULO = G.TITULO
+            JOIN GENEROS G ON L.TITULO = G.TITULO
             WHERE G.GENERO = ?
         """, (genero,))
 
