@@ -9,13 +9,27 @@ from tkinter import messagebox
 import sqlite3
 import lxml
 from datetime import datetime
+from datetime import date
 # lineas para evitar error SSL
 import os, ssl
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
 getattr(ssl, '_create_unverified_context', None)):
     ssl._create_default_https_context = ssl._create_unverified_context
 
-
+meses = {
+    "enero": 1,
+    "febrero": 2,
+    "marzo": 3,
+    "abril": 4,
+    "mayo": 5,
+    "junio": 6,
+    "julio": 7,
+    "agosto": 8,
+    "septiembre": 9,
+    "octubre": 10,
+    "noviembre": 11,
+    "diciembre": 12
+}
 
 def cargar():
     respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
@@ -24,245 +38,247 @@ def cargar():
 
 def almacenar_bd():
 
-    conn = sqlite3.connect('juegos.db')
+    conn = sqlite3.connect('recetas.db')
     conn.text_factory = str
-    conn.execute("DROP TABLE IF EXISTS JUEGOS")
-    conn.execute('''CREATE TABLE JUEGOS
+    conn.execute("DROP TABLE IF EXISTS RECETAS")
+    conn.execute('''CREATE TABLE RECETAS
        (TITULO            TEXT NOT NULL,
-        PORCENTAJE_VP    INTEGER        ,
-        PRECIO      DOUBLE,         
-        COMPLEJIDAD         TEXT
+        DIFICULTAD      TEXT,
+        NUMERO_COMENSALES      INTEGER,         
+        TIEMPO_PREPARACION         INTEGER,
+        AUTOR         TEXT,
+        FECHA         TEXT
         );''')
-    conn.execute("DROP TABLE IF EXISTS TEMATICA")
-    conn.execute('''CREATE TABLE TEMATICA
-           (TITULO            TEXT NOT NULL,
-            TEMATICA TEXT
-            );''')
 
-    
-    indices = [1, 2]
 
-    for i in indices:
-        url = f"https://zacatrus.es/juegos-de-mesa.html?p={i}"
+    url = f"https://recetas.elperiodico.com/Recetas-de-Aperitivos-tapas-listado_receta-1_1.html"
 
-        peticion = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/131.0.0.0 Safari/537.36"
-            }
-        )
+    peticion = urllib.request.Request(url)
 
-        f = urllib.request.urlopen(peticion, timeout=20)
-        s = BeautifulSoup(f, "lxml")
+    f = urllib.request.urlopen(peticion, timeout=20)
+    s = BeautifulSoup(f, "lxml")
 
-        lista_juegos = s.find_all("li", class_="item product product-item")
+    for receta in s.find_all("div", class_="resultado link"):
+        titulo = receta.find("a").text.strip()
+        #if (titulo.startswith("Receta de")):
+        enlace = receta.find("a")["href"]
 
-        for juego in lista_juegos:
-            enlace = juego.find("a", class_="product-item-link")["href"]
-            titulo = juego.find("a", class_="product-item-link").text.strip()
+        f2 = urllib.request.urlopen(enlace, timeout=20)
+        s2 = BeautifulSoup(f2, "lxml")
 
-            if (juego.find("div", class_="rating-result")):
-                porcentaje_vp = juego.find("div", class_="rating-result").text.strip().replace("%", "")
+        dificultad = None
+        comensales = None
+        tiempo_preparacion = None
+        autor = None
+        fecha_actualizacion = None
+        if (s2.find("div", class_="properties")):
+            dificultad = s2.find("div", class_="properties").find("span", class_="property dificultad").text.replace("Dificultad", "").strip()
+
+            if (s2.find("div", class_="properties").find("span", class_="property unidades")):
+                comensales = s2.find("div", class_="properties").find("span", class_="property unidades").text.replace("unidades", "").strip()
             else:
-                porcentaje_vp = None
+                comensales = s2.find("div", class_="properties").find("span", class_="property comensales").text.replace("comensales", "").strip()
 
-            if (juego.find("span", class_="club-final-price" )):
-                precio = juego.find("span", class_="club-final-price").text.replace("€", "").strip()
-            else:
-                precio = juego.find("span", class_="price").text.replace("€", "").strip()
+            tiempo_preparacion = s2.find("div", class_="properties").find("span", class_="property duracion").text.strip()
+            tiempo_preparacion_horas = 0
+            tiempo_preparacion_minutos = 0
+            if (tiempo_preparacion.__contains__("h")):
+                tiempo_preparacion_horas = int(tiempo_preparacion.split("h")[0].strip()) * 60
+            if (tiempo_preparacion.__contains__("m")):
+                if (tiempo_preparacion.__contains__("h")):
+                    tiempo_preparacion_minutos = int(tiempo_preparacion.split("h")[1].replace("m", "").strip())
+                else:
+                    tiempo_preparacion_minutos = int(tiempo_preparacion.replace("m", "").strip())
 
+            tiempo_preparacion = tiempo_preparacion_horas + tiempo_preparacion_minutos
+            autor = s2.find("div", class_="nombre_autor").find("a").text.strip()
+            
+            fecha_actualizacion = s2.find("span", class_="date_publish").text.strip()
+            fecha_actualizacion_lista = fecha_actualizacion.split(" ")
+            if len(fecha_actualizacion_lista) > 3:
+                fecha_actualizacion_lista.pop(0)
 
-            peticion2 = urllib.request.Request(
-                        enlace,
-                        headers={
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                        "Chrome/131.0.0.0 Safari/537.36"
-                        }
-                    )
+            dia = fecha_actualizacion_lista[0]
+            mes = meses.get(fecha_actualizacion_lista[1])
+            año = fecha_actualizacion_lista[2]
+            fecha = date(int(año), mes, int(dia))
+            print(titulo)
 
-            f2 = urllib.request.urlopen(peticion2, timeout=20)
-            s2 = BeautifulSoup(f2, "lxml")
-
-            if (s2.find("div", attrs={"data-th": "Temática"})):
-                tematica = s2.find("div", attrs={"data-th": "Temática"}).text.strip()
-            else:
-                tematica = None
-
-            if (s2.find("div", attrs={"data-th": "Complejidad"})):
-                complejidad = s2.find("div", attrs={"data-th": "Complejidad"}).text.strip()
-            else:
-                complejidad = None
-
-            conn.execute("""INSERT INTO JUEGOS (TITULO, PORCENTAJE_VP, PRECIO, COMPLEJIDAD) VALUES (?,?,?,?)""",
-                        (titulo, porcentaje_vp, precio, complejidad))
-
-            conn.execute("""INSERT INTO TEMATICA (TITULO, TEMATICA) VALUES (?,?)""",
-                        (titulo, tematica))
+            conn.execute("""INSERT INTO RECETAS (TITULO, DIFICULTAD, NUMERO_COMENSALES, TIEMPO_PREPARACION, AUTOR, FECHA) VALUES (?,?,?,?,?,?)""",
+                         (titulo, dificultad, comensales, tiempo_preparacion, autor, fecha))
 
             conn.commit()
-
-    cursor = conn.execute("SELECT COUNT(*) FROM JUEGOS")
+    cursor = conn.execute("SELECT COUNT(*) FROM RECETAS")
     messagebox.showinfo("Base Datos",
-                                             "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
+                                                                 "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
     conn.close()
 
-def imprimir_lista(cursor):
-    v = Toplevel()
-    v.title("LISTADO DE JUEGOS")
-    sc = Scrollbar(v)
-    sc.pack(side=RIGHT, fill=Y)
-    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
-    for row in cursor:
-        lb.insert(END,"Título: " + row[0])
-        lb.insert(END," Porcentaje_vp: "+ str(row[1] if row[1]!=None else "desconocido"))
-        lb.insert(END," Precio: "+ str(row[2]))
-        lb.insert(END," Complejidad: "+ str(row[3]) )
-        lb.insert(END,"\n\n")
-        lb.pack(side=LEFT,fill=BOTH)
-    sc.config(command = lb.yview)
 
-def imprimir_lista_1(cursor):
+def imprimir_lista_3(cursor):
     v = Toplevel()
-    v.title("LISTADO DE JUEGOS POR TEMATICA")
+    v.title("LISTADO DE RECETAS")
     sc = Scrollbar(v)
     sc.pack(side=RIGHT, fill=Y)
     lb = Listbox(v, width = 150, yscrollcommand=sc.set)
     for row in cursor:
         lb.insert(END,"Título: " + row[0])
-        lb.insert(END," Temáticas: "+ row[1] )
-        lb.insert(END," Complejidad: "+ str(row[2]) )
+        lb.insert(END," Dificultad: "+ row[1] )
+        lb.insert(END," Número de comensales: "+ str(row[2]))
+        lb.insert(END," Tiempo de preparación: "+ str(row[3]) )
+        if row[4]:
+            try:
+                fecha = datetime.strptime(
+                    str(row[4]),
+                    "%Y-%m-%d %H:%M:%S"
+                )
+                fecha_formateada = datetime.strftime(
+                    fecha,
+                    "%d/%m/%Y"
+                )
+                s = "FECHA DE ESTRENO: " + fecha_formateada
+            except ValueError:
+                s = "FECHA DE ESTRENO: " + str(row[4])
+        else:
+            s = "FECHA DE ESTRENO: No disponible"
+        lb.insert(END, s)
         lb.insert(END,"\n\n")
         lb.pack(side=LEFT,fill=BOTH)
     sc.config(command = lb.yview)
-    
 
 def imprimir_lista_2(cursor):
     v = Toplevel()
-    v.title("LISTADO DE JUEGOS POR COMPLEJIDAD")
+    v.title("LISTADO DE RECETAS")
     sc = Scrollbar(v)
     sc.pack(side=RIGHT, fill=Y)
     lb = Listbox(v, width = 150, yscrollcommand=sc.set)
     for row in cursor:
         lb.insert(END,"Título: " + row[0])
-        lb.insert(END," Complejidad: "+ str(row[1]) )
+        lb.insert(END," Dificultad: "+ row[1] )
+        lb.insert(END," Número de comensales: "+ str(row[2]))
+        lb.insert(END," Tiempo de preparación: "+ str(row[3]) )
+        lb.insert(END," Autor: "+ row[4] )
         lb.insert(END,"\n\n")
         lb.pack(side=LEFT,fill=BOTH)
     sc.config(command = lb.yview)
 
-def listar_juegos():
-    conn = sqlite3.connect('juegos.db')
+def imprimir_lista(cursor):
+    v = Toplevel()
+    v.title("LISTADO DE RECETAS")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,"Título: " + row[0])
+        lb.insert(END," Dificultad: "+ row[1] )
+        lb.insert(END," Número de comensales: "+ str(row[2]))
+        lb.insert(END," Tiempo de preparación: "+ str(row[3]) )
+        # lb.insert(END," Autor: "+ row[4] )
+        # if row[5]:
+        #     try:
+        #         fecha = datetime.strptime(
+        #             str(row[5]),
+        #             "%Y-%m-%d %H:%M:%S"
+        #         )
+        #         fecha_formateada = datetime.strftime(
+        #             fecha,
+        #             "%d/%m/%Y"
+        #         )
+        #         s = "FECHA DE ESTRENO: " + fecha_formateada
+        #     except ValueError:
+        #         s = "FECHA DE ESTRENO: " + str(row[5])
+        # else:
+        #     s = "FECHA DE ESTRENO: No disponible"
+        # lb.insert(END, s)
+        lb.insert(END,"\n\n")
+        lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+    
+def listar_recetas():
+    conn = sqlite3.connect('recetas.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM JUEGOS")
+    cursor = conn.execute("SELECT TITULO, DIFICULTAD, NUMERO_COMENSALES, TIEMPO_PREPARACION FROM RECETAS")
     imprimir_lista(cursor)
     conn.close()
 
-def listar_mejores_juegos():
-    conn = sqlite3.connect('juegos.db')
+def buscar_por_autor():
+    def listar(event):
+            conn = sqlite3.connect('recetas.db')
+            conn.text_factory = str
+            nombre = autor.get()
+            cursor = conn.execute("SELECT TITULO, DIFICULTAD, NUMERO_COMENSALES, TIEMPO_PREPARACION, AUTOR FROM RECETAS where AUTOR = ?", (nombre,))
+            resultados = cursor.fetchall()
+            conn.close
+            imprimir_lista_2(resultados)
+            
+    conn = sqlite3.connect('recetas.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM JUEGOS WHERE PORCENTAJE_VP >= 90 AND PORCENTAJE_VP IS NOT NULL ORDER BY PORCENTAJE_VP DESC")
-    imprimir_lista(cursor)
+    cursor = conn.execute("SELECT DISTINCT AUTOR FROM RECETAS WHERE AUTOR IS NOT NULL")
+    
+    autores = [i[0] for i in cursor]
+    
+    v = Toplevel()
+    label = Label(v,text="Seleccione el autor: ")
+    label.pack(side=LEFT)
+    autor = Spinbox(v, width= 30, values=autores, state='readonly')
+    autor.bind("<Return>", listar)
+    autor.pack(side=LEFT)
+    
     conn.close()
     
-def buscar_por_tematica():
-
-    def listar(event=None):
-        conn = sqlite3.connect('juegos.db')
-        conn.text_factory = str
-
-        genero = entry.get()
-
-        cursor = conn.execute("""
-            SELECT DISTINCT L.TITULO, L.PRECIO, L.PORCENTAJE_VP, L.COMPLEJIDAD
-            FROM JUEGOS L
-            INNER JOIN TEMATICA G ON L.TITULO = G.TITULO
-            WHERE G.TEMATICA = ?
-        """, (genero,))
-
-        resultados = cursor.fetchall()
-        conn.close()
-
-        imprimir_lista_1(resultados)
-
-    conn = sqlite3.connect('juegos.db')
-    conn.text_factory = str
-
-    cursor = conn.execute("""
-        SELECT DISTINCT TEMATICA
-        FROM TEMATICA
-        ORDER BY TEMATICA
-    """)
-
-    generos = [fila[0] for fila in cursor.fetchall()]
-    conn.close()
-
+def buscar_por_fecha():
+    def listar(event):
+            conn = sqlite3.connect('recetas.db')
+            conn.text_factory = str
+            try:
+                fecha = datetime.strptime(str(entry.get()),"%d-%m-%Y")
+                cursor = conn.execute("SELECT TITULO, DIFICULTAD, NUMERO_COMENSALES, TIEMPO_PREPARACION, FECHA FROM RECETAS WHERE FECHA < ?", (fecha,))
+                conn.close
+                imprimir_lista_3(cursor)
+            except:
+                conn.close
+                messagebox.showerror(title="Error",message="Error en la fecha\nFormato dd-mm-aaaa")  
     v = Toplevel()
-    v.title("Buscar por temática")
-
-    label = Label(v, text="Seleccione una temática")
+    label = Label(v, text="Introduzca la fecha (dd-mm-aaaa) ")
     label.pack(side=LEFT)
-
-    entry = Spinbox(
-        v,
-        values=generos,
-        state='readonly'
-    )
+    entry = Entry(v)
+    entry.bind("<Return>", listar)
     entry.pack(side=LEFT)
 
-    entry.bind("<Return>", listar)
-    
-def buscar_por_complejidad():
-    def listar(event):
-            conn = sqlite3.connect('juegos.db')
-            conn.text_factory = str
-            cursor = conn.execute("SELECT * FROM JUEGOS where COMPLEJIDAD LIKE '%" + str(complejidad.get()) + "%'")
-            conn.close
-            imprimir_lista_2(cursor)
-            
-    conn = sqlite3.connect('juegos.db')
-    conn.text_factory = str
-    cursor = conn.execute("SELECT DISTINCT COMPLEJIDAD FROM JUEGOS WHERE COMPLEJIDAD IS NOT NULL")
-    
-    complejidades = [i[0] for i in cursor]
-    
-    v = Toplevel()
-    label = Label(v,text="Seleccione la complejidad: ")
-    label.pack(side=LEFT)
-    complejidad = Spinbox(v, width= 30, values=complejidades, state='readonly')
-    complejidad.bind("<Return>", listar)
-    complejidad.pack(side=LEFT)
-    
-    conn.close()
-
 def ventana_principal():
-    root = Tk()
-    root.geometry("150x100")
+    def listar():
+            conn = sqlite3.connect('recetas.db')
+            conn.text_factory = str
+            cursor = conn.execute("SELECT *  FROM RECETAS")
+            conn.close
+            listar_recetas(cursor)
     
-    menubar = Menu(root)
+    raiz = Tk()
+
+    menu = Menu(raiz)
+
+    #DATOS
+    menudatos = Menu(menu, tearoff=0)
+    menudatos.add_command(label="Cargar", command=cargar)
+    menudatos.add_command(label="Salir", command=raiz.quit)
+    menu.add_cascade(label="Datos", menu=menudatos)
     
-    datosmenu = Menu(menubar, tearoff=0)
-    datosmenu.add_command(label="Cargar", command=almacenar_bd)
-    datosmenu.add_separator()
-    datosmenu.add_command(label="Salir", command=root.quit)
+    #LISTAR
+    listarmenu = Menu(menu, tearoff=0)
+    listarmenu.add_command(label="Recetas", command=listar_recetas)
     
-    menubar.add_cascade(label="Datos", menu=datosmenu)
-    
-    listarmenu = Menu(menubar, tearoff=0)
-    listarmenu.add_command(label="Juegos", command=listar_juegos)
-    listarmenu.add_command(label="Mejores juegos", command=listar_mejores_juegos)
-    
-    menubar.add_cascade(label="Listar", menu=listarmenu)
-    
-    buscarmenu = Menu(menubar, tearoff=0)
-    buscarmenu.add_command(label="Juegos por temática", command=buscar_por_tematica)
-    buscarmenu.add_command(label="Juegos por complejidad", command=buscar_por_complejidad)
-    
-    menubar.add_cascade(label="Buscar", menu=buscarmenu)
-    
-    root.config(menu=menubar)
-    root.mainloop()
-    
+    menu.add_cascade(label="Listar", menu=listarmenu)
+
+    #BUSCAR
+    menubuscar = Menu(menu, tearoff=0)
+    menubuscar.add_command(label="Recetas por autor", command=buscar_por_autor)
+    menubuscar.add_command(label="Recetas por fecha", command=buscar_por_fecha)
+    menu.add_cascade(label="Buscar", menu=menubuscar)
+
+    raiz.config(menu=menu)
+
+    raiz.mainloop()
+
+
+
 if __name__ == "__main__":
     ventana_principal()
