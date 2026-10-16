@@ -136,7 +136,7 @@ def imprimir_lista(cursor):
 def listar_peliculas():
     conn = sqlite3.connect('peliculas.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAIS P ON P.TITULO = PE.TITULO")
+    cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAISES P ON P.TITULO = PE.TITULO")
     imprimir_lista(cursor)
     conn.close()
 
@@ -144,8 +144,8 @@ def buscar_por_titulo():
     def listar(event):
             conn = sqlite3.connect('peliculas.db')
             conn.text_factory = str
-            titulo = titulo.get()
-            cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAIS P ON P.TITULO = PE.TITULO where PE.TITULO = ?", (titulo,))
+            titulos = titulo.get()
+            cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAISES P ON P.TITULO = PE.TITULO where PE.TITULO = ?", (titulos,))
             resultados = cursor.fetchall()
             conn.close
             imprimir_lista_2(resultados)
@@ -188,11 +188,11 @@ def buscar_por_genero():
     def listar(event):
             conn = sqlite3.connect('peliculas.db')
             conn.text_factory = str
-            genero = genero.get()
-            cursor = conn.execute("SELECT PE.TITULO, PE.FECHA FROM PELICULAS PE JOIN GENEROS P ON P.TITULO = PE.TITULO where P.GENERO = ?", (genero,))
+            generos = genero.get()
+            cursor = conn.execute("SELECT PE.TITULO, PE.FECHA FROM PELICULAS PE JOIN GENEROS P ON P.TITULO = PE.TITULO where P.GENERO = ?", (generos,))
             resultados = cursor.fetchall()
             conn.close
-            imprimir_lista_2(resultados)
+            imprimir_lista_3(resultados)
             
     conn = sqlite3.connect('peliculas.db')
     conn.text_factory = str
@@ -204,14 +204,14 @@ def buscar_por_genero():
     label = Label(v,text="Seleccione el género: ")
     label.pack(side=LEFT)
     genero = Spinbox(v, width= 30, values=generos, state='readonly')
-    genero.bind("<Return>", listar)
     genero.pack(side=LEFT)
+    genero.bind("<Return>", listar)
 
 def ventana_principal():
     def listar():
             conn = sqlite3.connect('peliculas.db')
             conn.text_factory = str
-            cursor = conn.execute("SELECT *  FROM RECETAS")
+            cursor = conn.execute("SELECT *  FROM PELICULAS")
             conn.close
             listar_peliculas(cursor)
     
