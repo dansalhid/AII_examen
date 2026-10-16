@@ -85,7 +85,8 @@ def imprimir_lista(cursor):
         lb.insert(END," Encuadernación: "+ row[4] )
         s = "FECHA DE ESTRENO: " + str(row[5])
         lb.insert(END, s)
-        lb.insert(END,"Autor: " + row[6])
+        lb.insert(END,"Autor: " + row[8])
+        lb.insert(END,"Colección: " + row[6])
         # lb.insert(END," Autor: "+ row[4] )
         # if row[5]:
         #     try:
@@ -162,19 +163,42 @@ def buscar_por_fecha():
                 conn.close
                 messagebox.showerror(title="Error",message="Error en la fecha\nFormato dd mm aaaa")  
     v = Toplevel()
-    label = Label(v, text="Introduzca la fecha (dd-mm-aaaa) ")
+    label = Label(v, text="Introduzca la fecha (dia mes año) ")
     label.pack(side=LEFT)
     entry = Entry(v)
     entry.bind("<Return>", listar)
     entry.pack(side=LEFT)
     
 def buscar_por_titulo_o_coleccion():
-    def listar(event):
+    def listar(event=None):
             conn = sqlite3.connect('comics.db')
             conn.text_factory = str
-            cursor = conn.execute("SELECT * FROM COMICS")
-            conn.close
-            listar_comics(cursor)
+            if (titulo):
+                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.TITULO LIKE '%" + entry.get() + "%'")
+                conn.close
+                imprimir_lista(cursor)
+            elif (coleccion):
+                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%'")
+                conn.close
+                imprimir_lista(cursor)
+            else:
+                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%' OR C.TITULO LIKE '%" + entry.get() + "%'")
+                conn.close
+                imprimir_lista(cursor)            
+    
+    v = Toplevel()
+    v.title("Cómics por título o colección") 
+
+    titulo = Checkbutton(v, text="Título", variable=BooleanVar()).pack(side=TOP)
+    coleccion = Checkbutton(v, text="Colección", variable=BooleanVar()).pack(side=TOP)
+
+    Label(v, text="Introduce una palabra:").pack(side=TOP)
+
+    entry = Entry(v)
+    entry.pack(side=TOP)
+    entry.bind("<Return>", listar)
+
+    Button(v, text="Buscar", command=listar).pack(side=TOP)
     
     
 def ventana_principal():
@@ -205,7 +229,7 @@ def ventana_principal():
     menubuscar = Menu(menu, tearoff=0)
     menubuscar.add_command(label="Cómics por autor", command=buscar_por_autor)
     menubuscar.add_command(label="Cómics por fecha", command=buscar_por_fecha)
-    menubuscar.add_command(label="Comics por ơtulo o colección", command=buscar_por_titulo_o_coleccion)
+    menubuscar.add_command(label="Comics por título o colección", command=buscar_por_titulo_o_coleccion)
     
     menu.add_cascade(label="Buscar", menu=menubuscar)
 
