@@ -6,7 +6,7 @@ from tkinter import *
 from tkinter import messagebox
 import sqlite3
 import lxml
-from datetime import datetime
+from datetime import *
 # lineas para evitar error SSL
 import os, ssl
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
@@ -44,12 +44,18 @@ def almacenar_bd():
     f = urllib.request.urlopen(url, timeout=20)
     s = BeautifulSoup(f, 'lxml')
     lista_comics = s.find("div", class_ = "listado vista micro").ul.find_all("li")
-    print(lista_comics)
     for elemento in lista_comics:
         enlace = elemento.div.div.div.a["href"]
+        enlace = f"https://www.universal-comics.com{enlace}"
         web_comic = urllib.request.urlopen(enlace, timeout=20)
         s_comic = BeautifulSoup(web_comic, 'lxml')
-        
+        titulo = s_comic.find("div", class_ = "columna-de").div.find("h1", class_ = "titulo").get_text().strip()
+        disponibilidad = s_comic.find("div", class_="panel").span.get_text().strip()
+        precio_original = s_comic.find("div", class_ = "panel panel-precio").find("span", class_ = "precio-anterior").get_text().replace("€", "").strip()
+        precio_descuento = s_comic.find("div", class_ = "panel panel-precio").find("span", class_ = "precio ofertado").get_text().replace("€", "").strip()
+        encuadernacion = s_comic.find("li", class_ = "encuadernacion").find("span", class_ = "valor-propiedad").get_text().strip()
+        fecha = s_comic.find("li", class_ = "fechaedicion").find("span", class_ = "valor-propiedad").get_text().strip()
+        fecha_final = datetime.strptime(fecha, "%d/%m/%Y")
     
 
 almacenar_bd()
