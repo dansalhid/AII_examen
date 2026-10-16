@@ -145,21 +145,18 @@ def buscar_por_titulo():
             conn = sqlite3.connect('peliculas.db')
             conn.text_factory = str
             titulos = titulo.get()
-            cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAISES P ON P.TITULO = PE.TITULO where PE.TITULO = ?", (titulos,))
+            cursor = conn.execute("SELECT PE.TITULO, P.PAIS, PE.DIRECTOR FROM PELICULAS PE JOIN PAISES P ON P.TITULO = PE.TITULO where PE.TITULO LIKE '%" + titulos + "%'")
             resultados = cursor.fetchall()
             conn.close
             imprimir_lista_2(resultados)
             
     conn = sqlite3.connect('peliculas.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT DISTINCT TITULO FROM PELICULAS WHERE TITULO IS NOT NULL")
-    
-    titulos = [i[0] for i in cursor]
     
     v = Toplevel()
     label = Label(v,text="Seleccione el titulo: ")
     label.pack(side=LEFT)
-    titulo = Spinbox(v, width= 30, values=titulos, state='readonly')
+    titulo = Entry(v)
     titulo.bind("<Return>", listar)
     titulo.pack(side=LEFT)
     
