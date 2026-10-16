@@ -24,7 +24,7 @@ def almacenar_bd():
 
     conn = sqlite3.connect('comics.db')
     conn.text_factory = str
-    conn.execute("DROP TABLE IF EXISTS JUEGOS COMICS")
+    conn.execute("DROP TABLE IF EXISTS COMICS")
     conn.execute('''CREATE TABLE COMICS
        (TITULO            TEXT NOT NULL,
         DISPONIBILIDAD    TEXT        ,
@@ -39,3 +39,17 @@ def almacenar_bd():
            (TITULO            TEXT NOT NULL,
             AUTOR TEXT
             );''')
+    
+    url = "https://www.universal-comics.com/comics.html"
+    f = urllib.request.urlopen(url, timeout=20)
+    s = BeautifulSoup(f, 'lxml')
+    lista_comics = s.find("div", class_ = "listado vista micro").ul.find_all("li")
+    print(lista_comics)
+    for elemento in lista_comics:
+        enlace = elemento.div.div.div.a["href"]
+        web_comic = urllib.request.urlopen(enlace, timeout=20)
+        s_comic = BeautifulSoup(web_comic, 'lxml')
+        
+    
+
+almacenar_bd()
