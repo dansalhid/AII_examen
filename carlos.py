@@ -21,7 +21,6 @@ def cargar():
         almacenar_bd()
 
 def almacenar_bd():
-
     conn = sqlite3.connect('comics.db')
     conn.text_factory = str
     conn.execute("DROP TABLE IF EXISTS COMICS")
@@ -119,7 +118,7 @@ def listar_comics():
 def listar_comics_con_descuento():
     conn = sqlite3.connect('comics.db')
     conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO  where PRECIO_DESCUENTO IS NOT NULL ORDER BY PRECIO_DESCUENTO DESC")
+    cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO  where PRECIO_DESCUENTO IS NOT NULL ORDER BY (PRECIO_DESCUENTO / PRECIO_ORIGINAL) DESC")
     imprimir_lista(cursor)
     conn.close()
     
@@ -149,17 +148,19 @@ def buscar_por_autor():
     conn.close()
     
 def buscar_por_fecha():
+    import locale
+    locale.setlocale(locale.LC_TIME, "es_ES")
     def listar(event):
             conn = sqlite3.connect('comics.db')
             conn.text_factory = str
             try:
-                fecha = datetime.strptime(str(entry.get()),"%d-%m-%Y")
+                fecha = datetime.strptime(str(entry.get()),"%d %B %Y")
                 cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE FECHA < ?", (fecha,))
                 conn.close
                 imprimir_lista(cursor)
             except:
                 conn.close
-                messagebox.showerror(title="Error",message="Error en la fecha\nFormato dd-mm-aaaa")  
+                messagebox.showerror(title="Error",message="Error en la fecha\nFormato dd mm aaaa")  
     v = Toplevel()
     label = Label(v, text="Introduzca la fecha (dd-mm-aaaa) ")
     label.pack(side=LEFT)
