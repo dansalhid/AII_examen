@@ -7,10 +7,11 @@ from tkinter import *
 from tkinter import messagebox
 import re, os, shutil
 from datetime import datetime
-from whoosh import query
-from whoosh.index import create_in, open_dir
-from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD
-from whoosh.qparser import QueryParser
+from whoosh.index import create_in,open_dir
+from whoosh.fields import Schema, TEXT, KEYWORD, DATETIME, NUMERIC, ID
+from whoosh.qparser import QueryParser, MultifieldParser
+from datetime import datetime
+from whoosh import qparser, index, query
 
 # Líneas para evitar error SSL
 import ssl
@@ -20,13 +21,13 @@ if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
     ssl._create_default_https_context = ssl._create_unverified_context
 
 
-# def cargar():
-#     respuesta = messagebox.askyesno(
-#         title="Confirmar",
-#         message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta"
-#     )
-#     if respuesta:
-#         almacenar_datos()
+def cargar():
+    respuesta = messagebox.askyesno(
+        title="Confirmar",
+        message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta"
+    )
+    if respuesta:
+        almacenar_datos()
 
 
 def extraer_pelis():
@@ -211,3 +212,117 @@ def extraer_pelis():
             print(f"Error al procesar {url}: {e}")
 
     return datos
+
+def almacenar_datos():
+    #define el esquema de la información
+    schem = Schema(titulo=ID(stored=True), titulo_original=TEXT(stored=True), fecha=DATETIME(stored=True), pais=TEXT(stored=True), director=TEXT(stored=True), generos=KEYWORD(stored=True,commas=True) ,texto=TEXT(stored=True), url_peli=TEXT(stored=True))
+    
+    #eliminamos el directorio del índice, si existe
+    if os.path.exists("Index"):
+        shutil.rmtree("Index")
+    os.mkdir("Index")
+    
+    #creamos el índice
+    ix = create_in("Index", schema=schem)
+    #creamos un writer para poder añadir documentos al indice
+    writer = ix.writer()
+    i=0
+    lista=extraer_pelis()
+    for j in lista:
+        #añade cada juego de la lista al índice
+        writer.add_document(titulo=str(j[0]), titulo_original=str(j[1]), fecha=j[2], pais=str(j[3]), director=str(j[4]), generos=str(j[5]), texto=str(j[6]), url_peli=str(j[7]))    
+        i+=1
+    writer.commit()
+    messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " pelis")
+
+def imprimir_lista(cursor):
+    v = Toplevel()
+    v.title("RECETAS DE COCINA DE RECETAS GRATIS")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,row['titulo'])
+        lb.insert(END,row['titulo_original'])
+        lb.insert(END,"    Fecha: "+ datetime.strftime(row['fecha'],"%d/%m/%Y"))
+        lb.insert(END,row['pais'])
+        lb.insert(END,row['generos'])
+        lb.insert(END,row['director'])
+        lb.insert(END,row['texto'])
+        lb.insert(END,row['url_peli'])
+        lb.insert(END,"\n\n")
+    lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+    
+def buscar_generos():
+    def mostrar_lista(event):
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            if(len(str(en.get()).split(" ")) == 1) :
+                entrada = '"'+str(en.get().strip())+'"'
+                query = QueryParser("generos", ix.schema).parse(entrada)
+                results = searcher.search(query,limit=20)
+                imprimir_lista(results)
+            else:
+                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase del título o introducción:")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    
+def buscar_titulo_o_sinopsis():
+    def mostrar_lista(event):
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            query = MultifieldParser(["titulos", "textos"], ix.schema).parse('"'+ str(en.get()) + '"')
+            results = searcher.search(query,limit=10)
+            imprimir_lista(results)
+
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase del título o introducción:")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    
+
+def ventana_principal():
+    def listar_todo():
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            results = searcher.search(query.Every(),limit=None)
+            imprimir_lista(results)
+          
+    root = Tk()
+    root.geometry("150x100")
+
+    menubar = Menu(root)
+    
+    datosmenu = Menu(menubar, tearoff=0)
+    datosmenu.add_command(label="Cargar", command=cargar)
+    datosmenu.add_separator()   
+    datosmenu.add_command(label="Salir", command=root.quit)
+    
+    menubar.add_cascade(label="Datos", menu=datosmenu)
+    
+    buscarmenu = Menu(menubar, tearoff=0)
+    buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_o_sinopsis)
+    buscarmenu.add_command(label="Géneros", command=buscar_generos)
+    # buscarmenu.add_command(label="Fecha", command=buscar_fecha)
+    # buscarmenu.add_command(label="Modificar fecha", command=modificar_fecha)
+    
+    menubar.add_cascade(label="Buscar", menu=buscarmenu)
+        
+    root.config(menu=menubar)
+    root.mainloop()
+
+    
+
+if __name__ == "__main__":
+    ventana_principal()

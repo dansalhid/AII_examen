@@ -208,40 +208,36 @@ def buscar_por_titulo_o_coleccion():
     
     
 def ventana_principal():
-    def listar():
-            conn = sqlite3.connect('comics.db')
-            conn.text_factory = str
-            cursor = conn.execute("SELECT * FROM COMICS")
-            conn.close
-            listar_comics(cursor)
+    def listar_todo():
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            results = searcher.search(query.Every(),limit=None)
+            imprimir_lista(results)
+          
+    root = Tk()
+    root.geometry("150x100")
+
+    menubar = Menu(root)
     
-    raiz = Tk()
-
-    menu = Menu(raiz)
-
-    #DATOS
-    menudatos = Menu(menu, tearoff=0)
-    menudatos.add_command(label="Cargar", command=cargar)
-    menudatos.add_command(label="Salir", command=raiz.quit)
-    menu.add_cascade(label="Datos", menu=menudatos)
+    datosmenu = Menu(menubar, tearoff=0)
+    datosmenu.add_command(label="Cargar", command=cargar)
+    datosmenu.add_separator()   
+    datosmenu.add_command(label="Salir", command=root.quit)
     
-    #LISTAR
-    menulistar = Menu(menu, tearoff=0)
-    menulistar.add_command(label="Todos los cómics", command=listar_comics)
-    menulistar.add_command(label="Cómics con más descuentos", command=listar_comics_con_descuento)
-    menu.add_cascade(label="Listar", menu=menulistar)
-
-    #BUSCAR
-    menubuscar = Menu(menu, tearoff=0)
-    menubuscar.add_command(label="Cómics por autor", command=buscar_por_autor)
-    menubuscar.add_command(label="Cómics por fecha", command=buscar_por_fecha)
-    menubuscar.add_command(label="Comics por ơtulo o colección", command=buscar_por_titulo_o_coleccion)
+    menubar.add_cascade(label="Datos", menu=datosmenu)
     
-    menu.add_cascade(label="Buscar", menu=menubuscar)
-
-    raiz.config(menu=menu)
-
-    raiz.mainloop()
+    buscarmenu = Menu(menubar, tearoff=0)
+    buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_o_sinopsis)
+    buscarmenu.add_command(label="Géneros", command=buscar_generos)
+    buscarmenu.add_command(label="Fecha", command=buscar_fecha)
+    buscarmenu.add_command(label="Modificar fecha", command=modificar_fecha)
     
+    menubar.add_cascade(label="Buscar", menu=buscarmenu)
+        
+    root.config(menu=menubar)
+    root.mainloop()
+
+    
+
 if __name__ == "__main__":
     ventana_principal()
