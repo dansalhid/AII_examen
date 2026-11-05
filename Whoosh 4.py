@@ -11,6 +11,7 @@ from whoosh.index import create_in,open_dir
 from whoosh.fields import Schema, TEXT, KEYWORD, DATETIME, NUMERIC, ID
 from whoosh.qparser import QueryParser, MultifieldParser
 from datetime import datetime
+from whoosh.query import Term, DateRange
 from whoosh import qparser, index, query
 
 # Líneas para evitar error SSL
@@ -215,7 +216,16 @@ def extraer_pelis():
 
 def almacenar_datos():
     #define el esquema de la información
-    schem = Schema(titulo=ID(stored=True), titulo_original=TEXT(stored=True), fecha=DATETIME(stored=True), pais=TEXT(stored=True), director=TEXT(stored=True), generos=KEYWORD(stored=True,commas=True) ,texto=TEXT(stored=True), url_peli=TEXT(stored=True))
+    schem = Schema(
+    titulo=ID(stored=True),
+    titulo_original=TEXT(stored=True),
+    fecha=DATETIME(stored=True),
+    pais=KEYWORD(stored=True, commas=True),
+    director=KEYWORD(stored=True, commas=True),
+    generos=KEYWORD(stored=True, commas=True),
+    texto=TEXT(stored=True),
+    url_peli=ID(stored=True)
+)
     
     #eliminamos el directorio del índice, si existe
     if os.path.exists("Index"):
@@ -229,8 +239,18 @@ def almacenar_datos():
     i=0
     lista=extraer_pelis()
     for j in lista:
-        #añade cada juego de la lista al índice
-        writer.add_document(titulo=str(j[0]), titulo_original=str(j[1]), fecha=j[2], pais=str(j[3]), director=str(j[4]), generos=str(j[5]), texto=str(j[6]), url_peli=str(j[7]))    
+        print("DIRECTOR:", j[4])
+        print("GÉNEROS:", j[5])
+        writer.add_document(
+        titulo=str(j[0]),
+        titulo_original=str(j[1]),
+        fecha=j[2],
+        pais=str(j[3]),
+        director=str(j[5]),
+        generos=str(j[4]),
+        texto=str(j[6]),
+        url_peli=str(j[7])
+    )
         i+=1
     writer.commit()
     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " pelis")
@@ -258,13 +278,18 @@ def buscar_generos():
     def mostrar_lista(event):
         ix=open_dir("Index")
         with ix.searcher() as searcher:
-            if(len(str(en.get()).split(" ")) == 1) :
-                entrada = '"'+str(en.get().strip())+'"'
-                query = QueryParser("generos", ix.schema).parse(entrada)
-                results = searcher.search(query,limit=20)
-                imprimir_lista(results)
-            else:
-                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
+            print(list(searcher.lexicon("generos")))
+            # if(len(str(en.get()).split(" ")) == 1) :
+            entrada = str(en.get().strip())
+            query = Term("generos", entrada)
+            print(query)
+            results = searcher.search(query,limit=20)
+            print("Entrada:", repr(entrada))
+            print("Campo generos:", ix.schema["generos"])
+            print(results)
+            imprimir_lista(results)
+            # else:
+                # messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
     v = Toplevel()
     v.title("Búsqueda por Título o Introducción")
         
@@ -290,8 +315,135 @@ def buscar_titulo_o_sinopsis():
     en = Entry(v, width=75)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
-    
 
+def buscar_fecha():
+    def mostrar_lista():
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            s = re.compile(r'\d{8}').match(str(en.get()))
+            s2 = re.compile(r'\d{8}').match(str(en1.get()))
+            if s and s2:
+                fecha_inicio = datetime.strptime(str(en.get()), "%Y%m%d")
+                fecha_fin = datetime.strptime(str(en1.get()), "%Y%m%d")
+                query = DateRange(
+                "fecha",
+                fecha_inicio,
+                fecha_fin
+            )
+                results = searcher.search(query, limit=20)
+
+                imprimir_lista(results)
+            else:
+                messagebox.showerror("ERROR", "formato de fecha incorrecto AAAAMMDD")
+    
+    v = Toplevel()
+    v.title("Búsqueda por Fecha y Título")
+    l = Label(v, text="Escriba una fecha (AAAAMMDD):")
+    l.pack(side=LEFT)   
+    en = Entry(v)
+    en.pack(side=LEFT)
+    
+    l1 = Label(v, text="Escriba palabras de la fecha:")
+    l1.pack(side=LEFT)
+    en1 = Entry(v, width=75)
+    en1.pack(side=LEFT)
+    
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
+    
+def modificar_fecha():
+
+    def modificar():
+
+        ix = open_dir("Index")
+
+        with ix.searcher() as searcher:
+
+            # Buscamos películas por título
+            query = QueryParser("titulo", ix.schema).parse(en.get())
+
+            results = searcher.search(query, limit=None)
+
+            if len(results) > 0:
+
+                # Guardamos los documentos encontrados
+                peliculas = [dict(r) for r in results]
+
+                # Mostramos los resultados
+                v2 = Toplevel()
+                v2.title("Películas encontradas")
+                v2.geometry("800x300")
+
+                sc = Scrollbar(v2)
+                sc.pack(side=RIGHT, fill=Y)
+
+                lb = Listbox(v2, yscrollcommand=sc.set)
+                lb.pack(side=BOTTOM, fill=BOTH, expand=True)
+
+                sc.config(command=lb.yview)
+
+                for p in peliculas:
+                    lb.insert(
+                        END,
+                        p["titulo"] + " - " +
+                        p["fecha"].strftime("%d/%m/%Y")
+                    )
+
+                # Pedimos confirmación
+                respuesta = messagebox.askyesno(
+                    title="Confirmar modificación",
+                    message="¿Está seguro de que quiere modificar las fechas de estreno?"
+                )
+
+                if respuesta:
+
+                    # Comprobamos la fecha introducida
+                    try:
+                        fecha = datetime.strptime(
+                            en2.get(), "%Y%m%d"
+                        )
+                    except ValueError:
+                        messagebox.showerror(
+                            "Error",
+                            "La fecha introducida no es válida"
+                        )
+                        return
+
+                    # Actualizamos los documentos
+                    with ix.writer() as writer:
+
+                        for p in peliculas:
+                            p["fecha"] = fecha
+                            writer.update_document(**p)
+
+                    messagebox.showinfo(
+                        "Modificación",
+                        "Se han modificado " +
+                        str(len(peliculas)) + " películas"
+                    )
+
+            else:
+                messagebox.showinfo(
+                    "AVISO",
+                    "No hay películas con ese título"
+                )
+
+    v = Toplevel()
+    v.title("Modificar Fecha de Estreno")
+
+    Label(v, text="Título de la película:").pack(side=LEFT)
+
+    en = Entry(v, width=40)
+    en.pack(side=LEFT)
+
+    Label(v, text="Nueva fecha (AAAAMMDD):").pack(side=LEFT)
+
+    en2 = Entry(v, width=15)
+    en2.pack(side=LEFT)
+
+    Button(v, text="Modificar", command=modificar).pack(side=LEFT)
+
+    
 def ventana_principal():
     def listar_todo():
         ix=open_dir("Index")
@@ -314,8 +466,8 @@ def ventana_principal():
     buscarmenu = Menu(menubar, tearoff=0)
     buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_o_sinopsis)
     buscarmenu.add_command(label="Géneros", command=buscar_generos)
-    # buscarmenu.add_command(label="Fecha", command=buscar_fecha)
-    # buscarmenu.add_command(label="Modificar fecha", command=modificar_fecha)
+    buscarmenu.add_command(label="Fecha", command=buscar_fecha)
+    buscarmenu.add_command(label="Modificar fecha", command=modificar_fecha)
     
     menubar.add_cascade(label="Buscar", menu=buscarmenu)
         
