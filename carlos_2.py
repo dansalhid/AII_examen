@@ -1,212 +1,428 @@
-#encoding:utf-8
+
+# encoding:utf-8
 
 from bs4 import BeautifulSoup
 import urllib.request
 from tkinter import *
 from tkinter import messagebox
-import sqlite3
-import lxml
-from datetime import *
-# lineas para evitar error SSL
-import os, ssl
+import re, os, shutil
+from datetime import datetime
+from whoosh.index import create_in,open_dir
+from whoosh.fields import Schema, TEXT, KEYWORD, DATETIME, NUMERIC, ID
+from whoosh.qparser import QueryParser, MultifieldParser
+from whoosh.query import NumericRange
+from datetime import datetime
+from whoosh import qparser, index, query
+
+# Líneas para evitar error SSL
+import ssl
+
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
-getattr(ssl, '_create_unverified_context', None)):
+        getattr(ssl, '_create_unverified_context', None)):
     ssl._create_default_https_context = ssl._create_unverified_context
 
 
-
 def cargar():
-    respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
+    respuesta = messagebox.askyesno(
+        title="Confirmar",
+        message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta"
+    )
     if respuesta:
-        almacenar_bd()
+        almacenar_datos()
 
-def almacenar_bd():
 
-    conn = sqlite3.connect('comics.db')
-    conn.text_factory = str
-    conn.execute("DROP TABLE IF EXISTS COMICS")
-    conn.execute('''CREATE TABLE COMICS
-       (TITULO            TEXT NOT NULL,
-        DISPONIBILIDAD    TEXT        ,
-        PRECIO_ORIGINAL      DOUBLE,
-        PRECIO_DESCUENTO DOUBLE,
-        ENCUADERNACION TEXT,
-        FECHA DATE,   
-        COLECCION         TEXT
-        );''')
-    conn.execute("DROP TABLE IF EXISTS AUTORES")
-    conn.execute('''CREATE TABLE AUTORES
-           (TITULO            TEXT NOT NULL,
-            AUTOR TEXT
-            );''')
+def extraer_pelis():
+
+    indices = [1, 2, 3]
+    datos = []
+
+    for i in indices:
+
+        url = f"https://www.elseptimoarte.net/estrenos/2024/{i}/"
+
+        try:
+            f = urllib.request.urlopen(url)
+            s = BeautifulSoup(f, "lxml")
+
+            lista = s.find("ul", class_="elements")
+
+            if lista is None:
+                continue
+
+            enlaces = lista.find_all("li")
+
+            for elemento in enlaces:
+
+                if not elemento.h3 or not elemento.h3.a:
+                    continue
+
+                peli = elemento.h3.a['href']
+
+                url_peli = f"https://www.elseptimoarte.net{peli}"
+
+                f2 = urllib.request.urlopen(url_peli)
+                s2 = BeautifulSoup(f2, "lxml")
+
+                informativo = s2.find(
+                    "main",
+                    class_="informativo"
+                )
+
+                if informativo is None:
+                    continue
+
+                highlight = informativo.find(
+                    "section",
+                    class_="highlight"
+                )
+
+                if highlight is None:
+                    continue
+
+                datos_peli = highlight.find("dl")
+
+                if datos_peli is None:
+                    continue
+
+                # Título original
+                dt_titulo_original = datos_peli.find(
+                    "dt",
+                    string="Título original"
+                )
+
+                if dt_titulo_original:
+                    dd = dt_titulo_original.find_next_sibling("dd")
+
+                    if dd:
+                        titulo_original = dd.get_text(strip=True)
+                    else:
+                        titulo_original = ""
+                else:
+                    titulo_original = ""
+
+                # Sinopsis
+                info = s2.find("div", class_="info")
+
+                sinopsis = info.find_all("p") if info else []
+
+                texto = ""
+
+                for parrafo in sinopsis:
+                    texto = texto + parrafo.get_text() + "\n"
+
+                # Título
+                dt_titulo = datos_peli.find(
+                    "dt",
+                    string="Título"
+                )
+
+                if dt_titulo:
+                    dd = dt_titulo.find_next_sibling("dd")
+
+                    if dd:
+                        titulo = dd.get_text(strip=True)
+                    else:
+                        titulo = titulo_original
+                else:
+                    titulo = titulo_original
+
+                # País
+                dt_pais = datos_peli.find(
+                    "dt",
+                    string="País"
+                )
+
+                if dt_pais:
+                    dd = dt_pais.find_next_sibling("dd")
+
+                    if dd:
+                        pais = "".join(dd.stripped_strings)
+                    else:
+                        pais = ""
+                else:
+                    pais = ""
+
+                # Fecha
+                dt_fecha = datos_peli.find(
+                    "dt",
+                    string="Estreno en España"
+                )
+
+                fecha = None
+
+                if dt_fecha:
+                    dd = dt_fecha.find_next_sibling("dd")
+
+                    if dd:
+                        texto_fecha = dd.get_text(strip=True)
+
+                        try:
+                            fecha = datetime.strptime(
+                                texto_fecha,
+                                '%d/%m/%Y'
+                            )
+                        except ValueError:
+                            fecha = None
+
+                # Géneros y director
+                generos_director = s2.find(
+                    "div",
+                    id="datos_pelicula"
+                )
+
+                generos = ""
+                director = ""
+
+                if generos_director:
+
+                    p_generos = generos_director.find(
+                        "p",
+                        class_="categorias"
+                    )
+
+                    if p_generos:
+                        generos = ", ".join(
+                            g.strip()
+                            for g in p_generos.get_text(" ", strip=True).split(",")
+                            if g.strip()
+                        )
+
+                    p_director = generos_director.find(
+                        "p",
+                        class_="director"
+                    )
+
+                    if p_director:
+                        director = "".join(
+                            p_director.stripped_strings
+                        )
+                        
+                print("Géneros extraídos:", repr(generos))
+                # Guardar los datos de la película
+                datos.append((
+                    titulo,
+                    titulo_original,
+                    fecha,
+                    pais,
+                    generos,
+                    director,
+                    texto,
+                    url_peli
+                ))
+
+                print(datos[-1])
+
+        except Exception as e:
+            print(f"Error al procesar {url}: {e}")
+
+    return datos
+
+def almacenar_datos():
+    #define el esquema de la información
+    schem = Schema(titulo=ID(stored=True), titulo_original=TEXT(stored=True), fecha=DATETIME(stored=True), pais=TEXT(stored=True), generos=KEYWORD(stored=True,commas=True,lowercase=True), director=TEXT(stored=True), texto=TEXT(stored=True), url_peli=TEXT(stored=True))
     
-    url = "https://www.universal-comics.com/comics.html"
-    f = urllib.request.urlopen(url, timeout=20)
-    s = BeautifulSoup(f, 'lxml')
-    lista_comics = s.find("div", class_ = "listado vista micro").ul.find_all("li")
-    for elemento in lista_comics:
-        enlace = elemento.div.div.div.a["href"]
-        enlace = f"https://www.universal-comics.com{enlace}"
-        web_comic = urllib.request.urlopen(enlace, timeout=20)
-        s_comic = BeautifulSoup(web_comic, 'lxml')
-        titulo = s_comic.find("div", class_ = "columna-de").div.find("h1", class_ = "titulo").get_text().strip()
-        disponibilidad = s_comic.find("div", class_="panel").span.get_text().strip()
-        precio_original = s_comic.find("div", class_ = "panel panel-precio").find("span", class_ = "precio-anterior").get_text().replace("€", "").strip()
-        precio_descuento = s_comic.find("div", class_ = "panel panel-precio").find("span", class_ = "precio ofertado").get_text().replace("€", "").strip()
-        encuadernacion = s_comic.find("li", class_ = "encuadernacion").find("span", class_ = "valor-propiedad").get_text().strip()
-        fecha = s_comic.find("li", class_ = "fechaedicion").find("span", class_ = "valor-propiedad").get_text().strip()
-        coleccion = s_comic.find("div", class_="panel-propiedades-producto").find("li", class_="coleccion").find("span", class_="valor-propiedad").get_text().strip()
-        autores = s_comic.find("div", class_="panel-propiedades-producto").find("li", class_="autores").find("span", class_="valor-propiedad").get_text().strip()
-        fecha_final = datetime.strptime(fecha, "%d/%m/%Y")
-        lista_autores = autores.strip().split("-")
-        for autor in lista_autores:
-            autor = autor.strip()
-            conn.execute("""INSERT INTO AUTORES (TITULO, AUTOR) VALUES (?,?)""",
-                                    (titulo, autor))
-            conn.commit()
-        conn.execute("""INSERT INTO COMICS (TITULO, DISPONIBILIDAD, PRECIO_ORIGINAL, PRECIO_DESCUENTO, ENCUADERNACION, FECHA, COLECCION) VALUES (?,?,?,?,?,?,?)""",
-                                              (titulo, disponibilidad, precio_original, precio_descuento, encuadernacion, fecha_final, coleccion))
-        conn.commit()
-    cursor = conn.execute("SELECT COUNT(*) FROM COMICS")
-    messagebox.showinfo("Base Datos",
-                                                     "Base de datos creada correctamente \nHay " + str(cursor.fetchone()[0]) + " registros")
-    conn.close()
+    #eliminamos el directorio del índice, si existe
+    if os.path.exists("Index"):
+        shutil.rmtree("Index")
+    os.mkdir("Index")
     
+    #creamos el índice
+    ix = create_in("Index", schema=schem)
+    #creamos un writer para poder añadir documentos al indice
+    writer = ix.writer()
+    i=0
+    lista=extraer_pelis()
+    for j in lista:
+        #añade cada juego de la lista al índice
+        writer.add_document(titulo=str(j[0]), titulo_original=str(j[1]), fecha=j[2], pais=str(j[3]), generos=str(j[4]), director=str(j[5]), texto=str(j[6]), url_peli=str(j[7]))    
+        i+=1
+    writer.commit()
+    messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " pelis")
+
 def imprimir_lista(cursor):
     v = Toplevel()
-    v.title("LISTADO DE CÓMICS")
+    v.title("RECETAS DE COCINA DE RECETAS GRATIS")
     sc = Scrollbar(v)
     sc.pack(side=RIGHT, fill=Y)
     lb = Listbox(v, width = 150, yscrollcommand=sc.set)
     for row in cursor:
-        lb.insert(END,"Título: " + row[0])
-        lb.insert(END," Disponibilidad: "+ row[1] )
-        lb.insert(END," Precio original: "+ str(row[2]))
-        lb.insert(END," Precio con descuento: "+ str(row[3]))
-        lb.insert(END," Encuadernación: "+ row[4] )
-        s = "FECHA DE ESTRENO: " + str(row[5])
-        lb.insert(END, s)
-        lb.insert(END,"Autor: " + row[6])
-        lb.insert(END,"Colección: " + row[7])
-        # lb.insert(END," Autor: "+ row[4] )
-        # if row[5]:
-        #     try:
-        #         fecha = datetime.strptime(
-        #             str(row[5]),
-        #             "%Y-%m-%d %H:%M:%S"
-        #         )
-        #         fecha_formateada = datetime.strftime(
-        #             fecha,
-        #             "%d/%m/%Y"
-        #         )
-        #         s = "FECHA DE ESTRENO: " + fecha_formateada
-        #     except ValueError:
-        #         s = "FECHA DE ESTRENO: " + str(row[5])
-        # else:
-        #     s = "FECHA DE ESTRENO: No disponible"
-        # lb.insert(END, s)
+        lb.insert(END,row['titulo'])
+        lb.insert(END,row['titulo_original'])
+        lb.insert(END,"Fecha: "+ datetime.strftime(row['fecha'],"%d/%m/%Y"))
+        lb.insert(END,row['pais'])
+        lb.insert(END,row['director'])
+        lb.insert(END,row['generos'])
+        lb.insert(END,row['texto'])
+        lb.insert(END,row['url_peli'])
         lb.insert(END,"\n\n")
-        lb.pack(side=LEFT,fill=BOTH)
+    lb.pack(side=LEFT,fill=BOTH)
     sc.config(command = lb.yview)
+    
+def buscar_generos():
+    def mostrar_lista(event):
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            entrada = en.get().strip().lower()
+            query = QueryParser("generos", ix.schema).parse('"'+entrada+'"')
+            results = searcher.search(query,limit=20)
+            if len(results) == 0:
+                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
+            else:
+                imprimir_lista(results)           
+                
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase del título o introducción:")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    
+def buscar_detalles():
+    def mostrar_lista(event):
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            query = QueryParser("detalles", ix.schema).parse('"'+ str(en.get()) + '"')
+            results = searcher.search(query,limit=10)
+            imprimir_lista(results)
 
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase de los detalles")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
 
-def listar_comics():
-    conn = sqlite3.connect('comics.db')
-    conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO ")
-    imprimir_lista(cursor)
-    conn.close()
-    
-def listar_comics_con_descuento():
-    conn = sqlite3.connect('comics.db')
-    conn.text_factory = str
-    cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO  where PRECIO_DESCUENTO IS NOT NULL ORDER BY PRECIO_DESCUENTO DESC")
-    imprimir_lista(cursor)
-    conn.close()
-    
-def buscar_por_autor():
-    def listar(event=None):
-            conn = sqlite3.connect('comics.db')
-            conn.text_factory = str
-            autores = autor.get()
-            cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO where AUTOR = ?", (autores,))
-            resultados = cursor.fetchall()
-            conn.close()
-            imprimir_lista(resultados)
-            
-    conn = sqlite3.connect('comics.db')
-    conn.text_factory = str
-    cursor = conn.execute("SELECT DISTINCT AUTOR FROM AUTORES WHERE AUTOR IS NOT NULL")
-    
-    autores = [i[0] for i in cursor]
+def buscar_tematicas():
+    def mostrar_lista():    
+        with ix.searcher() as searcher:
+            entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
+            query = QueryParser("tematicas", ix.schema).parse(entrada)
+            results = searcher.search(query,limit=10)
+            imprimir_lista(results)
     
     v = Toplevel()
-    label = Label(v,text="Seleccione el autor: ")
-    label.pack(side=LEFT)
-    autor = Spinbox(v, width= 30, values=autores, state='readonly')
-    autor.bind("<Return>", listar)
-    autor.pack(side=LEFT)
+    v.title("Búsqueda por caracteristicas y Título")
+    l = Label(v, text="Seleccione característica a buscar:")
+    l.pack(side=LEFT)
     
-    conn.close()
+    ix=open_dir("Index")      
+    with ix.searcher() as searcher:
+        #lista de todas las categorias disponibles en el campo de caracteristicas
+        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('tematicas')]
     
-def buscar_por_fecha():
-    def listar(event):
-            conn = sqlite3.connect('comics.db')
-            conn.text_factory = str
-            try:
-                fecha = datetime.strptime(str(entry.get()),"%d-%m-%Y")
-                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE FECHA < ?", (fecha,))
-                conn.close()
-                imprimir_lista(cursor)
-            except:
-                conn.close()
-                messagebox.showerror(title="Error",message="Error en la fecha\nFormato dd-mm-aaaa")  
+    en = Spinbox(v, values=lista_caracteristicas, state="readonly")
+    en.pack(side=LEFT)
+ 
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
+    
+def buscar_precio():
+    def mostrar_lista(event):
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            query = NumericRange("precio", None, float(en.get()), endexcl=True)
+            results = searcher.search(query,limit=10)
+            imprimir_lista(results)
+
     v = Toplevel()
-    label = Label(v, text="Introduzca la fecha (dd-mm-aaaa) ")
-    label.pack(side=LEFT)
-    entry = Entry(v)
-    entry.bind("<Return>", listar)
-    entry.pack(side=LEFT)
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase de los detalles")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
     
-def buscar_por_titulo_o_coleccion():
-    def listar(event=None):
-            conn = sqlite3.connect('comics.db')
-            conn.text_factory = str
-            print(titulo, coleccion)
-            if (titulo and (not coleccion)):
-                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.TITULO LIKE '%" + entry.get() + "%'")
-                conn.close
-                imprimir_lista(cursor)
-            if (coleccion and (not titulo)):
-                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%'")
-                conn.close
-                imprimir_lista(cursor)
-            if (coleccion and titulo):
-                cursor = conn.execute("SELECT * FROM COMICS C JOIN AUTORES A ON C.TITULO = A.TITULO WHERE C.COLECCION LIKE '%" + entry.get() + "%' OR C.TITULO LIKE '%" + entry.get() + "%'")
-                conn.close
-                imprimir_lista(cursor)            
+def buscar_jugadores():
+    def mostrar_lista(event):
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            query = QueryParser("jugadores", ix.schema).parse(str(en.get()))
+            results = searcher.search(query,limit=10)
+            imprimir_lista(results)
+
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase de los detalles")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+
+def buscar_fecha():
+    def mostrar_lista(event):
+        ix=open_dir("Index")
+        s = re.compile('(\d{8})\s+(\d{8})').match(str(en.get()))
+        if s:
+            fecha_i = s.group(1)
+            fecha_f = s.group(2)
+            with ix.searcher() as searcher:
+                query = QueryParser("fecha", ix.schema).parse('['+fecha_i+' TO '+fecha_f+']')
+                results = searcher.search(query,limit=None)
+                imprimir_lista(results)
+        else:
+            messagebox.showerror("ERROR", "formato de rango de fechas incorrecto DD/MM/AAAA DD/MM/AAAA")
     
     v = Toplevel()
-    v.title("Cómics por título o colección") 
+    v.title("Búsqueda por Fecha")
+    l = Label(v, text="Introduzca el rango de fechas (DD/MM/AAAA DD/MM/AAAA):")
+    l.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
 
-    t = BooleanVar()
-    ve = BooleanVar()
 
-    titulo = Checkbutton(v, text="Título", variable=t)
-    titulo.pack(side=TOP)
-    
-    coleccion = Checkbutton(v, text="Colección", variable=ve)
-    coleccion.pack(side=TOP)
+def modificar_fecha():
+    def modificar():
+    #comprobamos el formato de la entrada
+        if(not re.match("\d{8}",en1.get())):
+            messagebox.showinfo("Error", "Formato del rango de fecha incorrecto")
+            return
+        ix=open_dir("Index")
+        lista=[] # lista de las películas a modificar, usamos el campo url (unique) para updates
+        with ix.searcher() as searcher:
+            query = QueryParser("titulo", ix.schema).parse(str(en.get()))
+            results = searcher.search(query, limit=None)
+            v = Toplevel()
+            v.title("Listado de Películas a Modificar")
+            v.geometry('800x150')
+            sc = Scrollbar(v)
+            sc.pack(side=RIGHT, fill=Y)
+            lb = Listbox(v, yscrollcommand=sc.set)
+            lb.pack(side=BOTTOM, fill = BOTH)
+            sc.config(command = lb.yview)
+            for r in results:
+                lb.insert(END,r['titulo'])
+                lb.insert(END,r['fecha'])
+                lb.insert(END,'')
+                lista.append(r) #cargamos la lista con los resultados de la búsqueda
+            # actualizamos con la nueva fecha de estreno todas las películas de la lista
+            respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere modificar las fechas de estrenos de estas peliculas?")
+            if respuesta:
+                writer = ix.writer()
+                for r in lista:
+                    writer.update_document(url_peli=r['url_peli'], fecha=datetime.strptime(str(en1.get()),'%Y%m%d'), titulo=r['titulo'], titulo_original=r
+                        ['titulo_original'], pais=r['pais'], director=r['director'], generos=r['generos'], texto=r['texto'])
+                    writer.commit()
+                
+    v = Toplevel()
+    v.title("Modificar Fecha Estreno")
+    l = Label(v, text="Introduzca Título Película:")
+    l.pack(side=LEFT)
+    en = Entry(v)
+    en.pack(side=LEFT)
+    l1 = Label(v, text="Introduzca Fecha Estreno AAAAMMDD:")
+    l1.pack(side=LEFT)
+    en1 = Entry(v)
+    en1.pack(side=LEFT)
+    bt = Button(v, text='Modificar', command=modificar)
+    bt.pack(side=LEFT)
 
-    Label(v, text="Introduce una palabra:").pack(side=TOP)
-
-    entry = Entry(v)
-    entry.pack(side=TOP)
-    entry.bind("<Return>", listar)
-
-    Button(v, text="Buscar", command=listar).pack(side=TOP)
-    
-    
 def ventana_principal():
     def listar_todo():
         ix=open_dir("Index")
