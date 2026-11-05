@@ -23,221 +23,106 @@ if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
 
 
 def cargar():
-    respuesta = messagebox.askyesno(
-        title="Confirmar",
-        message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta"
-    )
+    respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
     if respuesta:
         almacenar_datos()
 
+def extraer_juegos():
+    lista = []
+    
+    elementos = [1, 2]
 
-def extraer_pelis():
+    for i in elementos:
+        url = f'https://zacatrus.es/juegos-de-mesa.html?p={i}'
 
-    indices = [1, 2, 3]
-    datos = []
+        cabeceras = {
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/131.0.0.0 Safari/537.36'
+        ),
+        'Accept': (
+            'text/html,application/xhtml+xml,'
+            'application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+        ),
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+        }
 
-    for i in indices:
+        peticion = urllib.request.Request(
+        url,
+        headers=cabeceras
+        )
 
-        url = f"https://www.elseptimoarte.net/estrenos/2024/{i}/"
+        f = urllib.request.urlopen(peticion, timeout=20)
+        s = BeautifulSoup(f, "lxml")
+        
+        lista_juegos = s.find_all("li", class_="item product product-item")
 
-        try:
-            f = urllib.request.urlopen(url)
-            s = BeautifulSoup(f, "lxml")
+        for juego in lista_juegos:
+            enlace = juego.find("a", class_="product-item-link")["href"]
+            titulo = juego.find("a", class_="product-item-link").text.strip()
 
-            lista = s.find("ul", class_="elements")
-
-            if lista is None:
-                continue
-
-            enlaces = lista.find_all("li")
-
-            for elemento in enlaces:
-
-                if not elemento.h3 or not elemento.h3.a:
-                    continue
-
-                peli = elemento.h3.a['href']
-
-                url_peli = f"https://www.elseptimoarte.net{peli}"
-
-                f2 = urllib.request.urlopen(url_peli)
-                s2 = BeautifulSoup(f2, "lxml")
-
-                informativo = s2.find(
-                    "main",
-                    class_="informativo"
+            if (juego.find("span", class_="club-final-price" )):
+                precio = juego.find("span", class_="club-final-price").text.replace("€", "").replace(",", ".").strip();
+            else:
+                precio = juego.find("span", class_="price").text.replace("€", "").replace(",", ".").strip();
+            peticion2 = urllib.request.Request(
+                enlace,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                    }
                 )
 
-                if informativo is None:
-                    continue
+            f2 = urllib.request.urlopen(peticion2, timeout=20)
+            s2 = BeautifulSoup(f2, "lxml")
+            
+            if (s2.find("div", attrs={"data-th": "Temática"})):
+                tematica = s2.find("div", attrs={"data-th": "Temática"}).text.strip()
+            else:
+                tematica = None
 
-                highlight = informativo.find(
-                    "section",
-                    class_="highlight"
-                )
+            if (s2.find("div", attrs={"data-th": "Complejidad"})):
+                complejidad = s2.find("div", attrs={"data-th": "Complejidad"}).text.strip()
+            else:
+                complejidad = None
 
-                if highlight is None:
-                    continue
+            if (s2.find("div", attrs={"data-th": "Núm. jugadores"})):
+                numero_jugadores = s2.find("div", attrs={"data-th": "Núm. jugadores"}).text.strip()
+                if (numero_jugadores.__contains__("+")):
+                    numero_jugadores = numero_jugadores.replace(", +", "")[:-1].strip()
+            else:
+                numero_jugadores = None
 
-                datos_peli = highlight.find("dl")
+            detalles = s2.find("div", class_="product attribute description").text.strip()
 
-                if datos_peli is None:
-                    continue
-
-                # Título original
-                dt_titulo_original = datos_peli.find(
-                    "dt",
-                    string="Título original"
-                )
-
-                if dt_titulo_original:
-                    dd = dt_titulo_original.find_next_sibling("dd")
-
-                    if dd:
-                        titulo_original = dd.get_text(strip=True)
-                    else:
-                        titulo_original = ""
-                else:
-                    titulo_original = ""
-
-                # Sinopsis
-                info = s2.find("div", class_="info")
-
-                sinopsis = info.find_all("p") if info else []
-
-                texto = ""
-
-                for parrafo in sinopsis:
-                    texto = texto + parrafo.get_text() + "\n"
-
-                # Título
-                dt_titulo = datos_peli.find(
-                    "dt",
-                    string="Título"
-                )
-
-                if dt_titulo:
-                    dd = dt_titulo.find_next_sibling("dd")
-
-                    if dd:
-                        titulo = dd.get_text(strip=True)
-                    else:
-                        titulo = titulo_original
-                else:
-                    titulo = titulo_original
-
-                # País
-                dt_pais = datos_peli.find(
-                    "dt",
-                    string="País"
-                )
-
-                if dt_pais:
-                    dd = dt_pais.find_next_sibling("dd")
-
-                    if dd:
-                        pais = "".join(dd.stripped_strings)
-                    else:
-                        pais = ""
-                else:
-                    pais = ""
-
-                # Fecha
-                dt_fecha = datos_peli.find(
-                    "dt",
-                    string="Estreno en España"
-                )
-
-                fecha = None
-
-                if dt_fecha:
-                    dd = dt_fecha.find_next_sibling("dd")
-
-                    if dd:
-                        texto_fecha = dd.get_text(strip=True)
-
-                        try:
-                            fecha = datetime.strptime(
-                                texto_fecha,
-                                '%d/%m/%Y'
-                            )
-                        except ValueError:
-                            fecha = None
-
-                # Géneros y director
-                generos_director = s2.find(
-                    "div",
-                    id="datos_pelicula"
-                )
-
-                generos = ""
-                director = ""
-
-                if generos_director:
-
-                    p_generos = generos_director.find(
-                        "p",
-                        class_="categorias"
-                    )
-
-                    if p_generos:
-                        generos = ", ".join(
-                            g.strip()
-                            for g in p_generos.get_text(" ", strip=True).split(",")
-                            if g.strip()
-                        )
-
-                    p_director = generos_director.find(
-                        "p",
-                        class_="director"
-                    )
-
-                    if p_director:
-                        director = "".join(
-                            p_director.stripped_strings
-                        )
-                        
-                print("Géneros extraídos:", repr(generos))
-                # Guardar los datos de la película
-                datos.append((
-                    titulo,
-                    titulo_original,
-                    fecha,
-                    pais,
-                    generos,
-                    director,
-                    texto,
-                    url_peli
-                ))
-
-                print(datos[-1])
-
-        except Exception as e:
-            print(f"Error al procesar {url}: {e}")
-
-    return datos
-
+            lista.append((titulo, precio, tematica, complejidad, numero_jugadores, detalles))
+    return lista
+ 
 def almacenar_datos():
-    #define el esquema de la información
-    schem = Schema(titulo=ID(stored=True), titulo_original=TEXT(stored=True), fecha=DATETIME(stored=True), pais=TEXT(stored=True), generos=KEYWORD(stored=True,commas=True,lowercase=True), director=TEXT(stored=True), texto=TEXT(stored=True), url_peli=TEXT(stored=True))
-    
-    #eliminamos el directorio del índice, si existe
-    if os.path.exists("Index"):
-        shutil.rmtree("Index")
-    os.mkdir("Index")
-    
-    #creamos el índice
-    ix = create_in("Index", schema=schem)
-    #creamos un writer para poder añadir documentos al indice
-    writer = ix.writer()
-    i=0
-    lista=extraer_pelis()
-    for j in lista:
-        #añade cada juego de la lista al índice
-        writer.add_document(titulo=str(j[0]), titulo_original=str(j[1]), fecha=j[2], pais=str(j[3]), generos=str(j[4]), director=str(j[5]), texto=str(j[6]), url_peli=str(j[7]))    
-        i+=1
-    writer.commit()
-    messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " pelis")
+     #define el esquema de la información
+     schem = Schema(titulo=TEXT(phrase=False, stored=True) , precio=NUMERIC(numtype=float, stored=True), tematica=TEXT(stored=True), complejidad=TEXT(phrase=False, stored=True), numero_jugadores=KEYWORD(stored=True, commas=True), detalles=TEXT(phrase=False, stored=True))
+     
+     #eliminamos el directorio del índice, si existe
+     if os.path.exists("Index"):
+         shutil.rmtree("Index")
+     os.mkdir("Index")
+     
+     #creamos el índice
+     ix = create_in("Index", schema=schem)
+     #creamos un writer para poder añadir documentos al indice
+     writer = ix.writer()
+     i=0
+     lista=extraer_juegos()
+     for j in lista:
+         #añade cada estreno de la lista al índice
+         writer.add_document(titulo=str(j[0]), precio=float(j[1]), tematica=str(j[2]), complejidad=str(j[3]), numero_jugadores=str(j[4]), detalles=str(j[5]))   
+         i+=1
+     writer.commit()
+     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")          
 
 def imprimir_lista(cursor):
     v = Toplevel()
@@ -247,13 +132,11 @@ def imprimir_lista(cursor):
     lb = Listbox(v, width = 150, yscrollcommand=sc.set)
     for row in cursor:
         lb.insert(END,row['titulo'])
-        lb.insert(END,row['titulo_original'])
-        lb.insert(END,"Fecha: "+ datetime.strftime(row['fecha'],"%d/%m/%Y"))
-        lb.insert(END,row['pais'])
-        lb.insert(END,row['director'])
-        lb.insert(END,row['generos'])
-        lb.insert(END,row['texto'])
-        lb.insert(END,row['url_peli'])
+        lb.insert(END,row['precio'])
+        lb.insert(END,row['tematica'])
+        lb.insert(END,row['complejidad'])
+        lb.insert(END,row['numero_jugadores'])
+        lb.insert(END,row['detalles'])
         lb.insert(END,"\n\n")
     lb.pack(side=LEFT,fill=BOTH)
     sc.config(command = lb.yview)
@@ -354,75 +237,6 @@ def buscar_jugadores():
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
 
-def buscar_fecha():
-    def mostrar_lista(event):
-        ix=open_dir("Index")
-        s = re.compile('(\d{8})\s+(\d{8})').match(str(en.get()))
-        if s:
-            fecha_i = s.group(1)
-            fecha_f = s.group(2)
-            with ix.searcher() as searcher:
-                query = QueryParser("fecha", ix.schema).parse('['+fecha_i+' TO '+fecha_f+']')
-                results = searcher.search(query,limit=None)
-                imprimir_lista(results)
-        else:
-            messagebox.showerror("ERROR", "formato de rango de fechas incorrecto DD/MM/AAAA DD/MM/AAAA")
-    
-    v = Toplevel()
-    v.title("Búsqueda por Fecha")
-    l = Label(v, text="Introduzca el rango de fechas (DD/MM/AAAA DD/MM/AAAA):")
-    l.pack(side=LEFT)
-    en = Entry(v, width=75)
-    en.bind("<Return>", mostrar_lista)
-    en.pack(side=LEFT)
-
-
-def modificar_fecha():
-    def modificar():
-    #comprobamos el formato de la entrada
-        if(not re.match("\d{8}",en1.get())):
-            messagebox.showinfo("Error", "Formato del rango de fecha incorrecto")
-            return
-        ix=open_dir("Index")
-        lista=[] # lista de las películas a modificar, usamos el campo url (unique) para updates
-        with ix.searcher() as searcher:
-            query = QueryParser("titulo", ix.schema).parse(str(en.get()))
-            results = searcher.search(query, limit=None)
-            v = Toplevel()
-            v.title("Listado de Películas a Modificar")
-            v.geometry('800x150')
-            sc = Scrollbar(v)
-            sc.pack(side=RIGHT, fill=Y)
-            lb = Listbox(v, yscrollcommand=sc.set)
-            lb.pack(side=BOTTOM, fill = BOTH)
-            sc.config(command = lb.yview)
-            for r in results:
-                lb.insert(END,r['titulo'])
-                lb.insert(END,r['fecha'])
-                lb.insert(END,'')
-                lista.append(r) #cargamos la lista con los resultados de la búsqueda
-            # actualizamos con la nueva fecha de estreno todas las películas de la lista
-            respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere modificar las fechas de estrenos de estas peliculas?")
-            if respuesta:
-                writer = ix.writer()
-                for r in lista:
-                    writer.update_document(url_peli=r['url_peli'], fecha=datetime.strptime(str(en1.get()),'%Y%m%d'), titulo=r['titulo'], titulo_original=r
-                        ['titulo_original'], pais=r['pais'], director=r['director'], generos=r['generos'], texto=r['texto'])
-                    writer.commit()
-                
-    v = Toplevel()
-    v.title("Modificar Fecha Estreno")
-    l = Label(v, text="Introduzca Título Película:")
-    l.pack(side=LEFT)
-    en = Entry(v)
-    en.pack(side=LEFT)
-    l1 = Label(v, text="Introduzca Fecha Estreno AAAAMMDD:")
-    l1.pack(side=LEFT)
-    en1 = Entry(v)
-    en1.pack(side=LEFT)
-    bt = Button(v, text='Modificar', command=modificar)
-    bt.pack(side=LEFT)
-
 def ventana_principal():
     def listar_todo():
         ix=open_dir("Index")
@@ -443,10 +257,10 @@ def ventana_principal():
     menubar.add_cascade(label="Datos", menu=datosmenu)
     
     buscarmenu = Menu(menubar, tearoff=0)
-    buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_o_sinopsis)
-    buscarmenu.add_command(label="Géneros", command=buscar_generos)
-    buscarmenu.add_command(label="Fecha", command=buscar_fecha)
-    buscarmenu.add_command(label="Modificar fecha", command=modificar_fecha)
+    buscarmenu.add_command(label="Detalles", command=buscar_detalles)
+    buscarmenu.add_command(label="Temáticas", command=buscar_tematicas)
+    buscarmenu.add_command(label="Precio", command=buscar_precio)
+    buscarmenu.add_command(label="Jugadores", command=buscar_jugadores)
     
     menubar.add_cascade(label="Buscar", menu=buscarmenu)
         
