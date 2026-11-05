@@ -100,7 +100,7 @@ def extraer_juegos():
  
 def almacenar_datos():
      #define el esquema de la información
-     schem = Schema(titulo=TEXT(phrase=False, stored=True) , precio=NUMERIC(numtype=float, stored=True), tematica=TEXT(stored=True, commas=True), complejidad=TEXT(phrase=False, stored=True), numero_jugadores=KEYWORD(stored=True, commas=True), detalles=TEXT(phrase=False, stored=True))
+     schem = Schema(titulo=TEXT(phrase=False, stored=True) , precio=NUMERIC(numtype=float, stored=True), tematica=TEXT(stored=True), complejidad=TEXT(phrase=False, stored=True), numero_jugadores=KEYWORD(stored=True, commas=True), detalles=TEXT(phrase=False, stored=True))
      
      #eliminamos el directorio del índice, si existe
      if os.path.exists("Index"):
