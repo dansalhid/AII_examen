@@ -82,6 +82,46 @@ def almacenar_datos():
         i+=1
     writer.commit()
     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")
+
+#apartado a.
+def buscar_editorial():
+    def mostrar_lista():    
+        with ix.searcher() as searcher:
+            entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
+            query = QueryParser("editorial", ix.schema).parse(entrada)
+            results = searcher.search(query,limit=15)
+            v = Toplevel()
+            v.title("Listado de juegos")
+            v.geometry('800x150')
+            sc = Scrollbar(v)
+            sc.pack(side=RIGHT, fill=Y)
+            lb = Listbox(v, yscrollcommand=sc.set)
+            lb.pack(side=BOTTOM, fill = BOTH)
+            sc.config(command = lb.yview)
+            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
+            for r in results: 
+                lb.insert(END,r['titulo'])
+                lb.insert(END,r['fecha'])
+                lb.insert(END,r['generos'])
+                lb.insert(END,r['editorial'])
+                lb.insert(END,r['precio'])
+                lb.insert(END,'')
+    
+    v = Toplevel()
+    v.title("Búsqueda por caracteristicas y Título")
+    l = Label(v, text="Seleccione característica a buscar:")
+    l.pack(side=LEFT)
+    
+    ix=open_dir("Index")      
+    with ix.searcher() as searcher:
+        #lista de todas las categorias disponibles en el campo de caracteristicas
+        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('editorial')]
+    
+    en = Spinbox(v, values=lista_caracteristicas, state="readonly")
+    en.pack(side=LEFT)
+ 
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
     
 def buscar_precio():
     def mostrar_lista(event):
@@ -116,6 +156,108 @@ def buscar_precio():
     en = Entry(v)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
+    
+def eliminar_por_fecha():
+    def modificar(event):
+        if not re.fullmatch(r"\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{4}", en.get()):
+            messagebox.showinfo("Error","Formato de fechas incorrecto. Debe ser: DD-MM-AAAA-DD-MM-AAAA"
+    )
+    return
+
+    aux = en.get().split("-")
+
+    fecha_inicial = "-".join(aux[0:3])
+    fecha_final = "-".join(aux[3:6])
+
+    rango_fecha = '[' + fecha_inicial + ' TO ' + fecha_final + ']'
+        ix=open_dir("Index") 
+        with ix.searcher() as searcher:
+            query = QueryParser("fecha", ix.schema).parse(str(en.get()))
+            results = searcher.search(query, limit=None)
+            if len(results) > 0: # si hay algún documento a borrar 
+                v = Toplevel()
+                v.title("Listado de Estrenos a Borrar")
+                v.geometry('800x150')
+                sc = Scrollbar(v)
+                sc.pack(side=RIGHT, fill=Y)
+                lb = Listbox(v, yscrollcommand=sc.set)
+                lb.pack(side=BOTTOM, fill = BOTH)
+                sc.config(command = lb.yview)
+                for r in results:
+                    lb.insert(END,r['titulo'])
+                    lb.insert(END,'')
+                # pedimos confirmación
+                respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere eliminar estos estrenos?")
+                if respuesta:
+                    writer = ix.writer()
+                    writer.delete_by_query(query)
+                    writer.commit()
+            else:
+                messagebox.showinfo("AVISO", "No hay ningun estreno con esas palabras en la sinopsis")
+
+    v = Toplevel()
+    v.title("Eliminar Estrenos por Fecha")
+    l = Label(v, text="Introduzca fecha:")
+    l.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", modificar)
+    en.pack(side=LEFT)
+
+
+def buscar_generos_y_titulo():
+    def mostrar_lista(event):
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            entrada = en.get().strip().lower()
+            query = QueryParser("generos", ix.schema).parse('"'+entrada+'"')
+            results = searcher.search(query,limit=20)
+            if len(results) == 0:
+                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
+            else:
+                imprimir_lista(results)           
+                
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase del título o introducción:")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    
+def buscar_titulo_sinopsis():
+    def mostrar_lista(event):
+        #abrimos el índice
+        ix=open_dir("Index")
+        #creamos un searcher en el índice    
+        with ix.searcher() as searcher:
+            #se crea la consulta: buscamos en los campos "titulo" o "sinopsis" alguna de las palabras que hay en el Entry "en"
+            #se usa la opción OrGroup para que use el operador OR por defecto entre palabras, en lugar de AND
+            query = MultifieldParser(["titulo","sinopsis"], ix.schema, group=OrGroup).parse(str(en.get()))
+            #llamamos a la función search del searcher, pasándole como parámetro la consulta creada
+            results = searcher.search(query,limit=3) #sólo devuelve los 3 primeros
+            #recorremos los resultados obtenidos(es una lista de diccionarios) y mostramos lo solicitado
+            v = Toplevel()
+            v.title("Listado de juegos")
+            v.geometry('800x150')
+            sc = Scrollbar(v)
+            sc.pack(side=RIGHT, fill=Y)
+            lb = Listbox(v, yscrollcommand=sc.set)
+            lb.pack(side=BOTTOM, fill = BOTH)
+            sc.config(command = lb.yview)
+            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
+            for r in results: 
+                lb.insert(END,r['titulo'])
+                lb.insert(END,r['sinopsis'])
+                lb.insert(END,'')
+    
+    v = Toplevel()
+    v.title("Busqueda por Título o Sinopsis")
+    l = Label(v, text="Introduzca las palabras a buscar:")
+    l.pack(side=LEFT)
+    en = Entry(v)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
 
 def ventana_principal():
         
@@ -130,10 +272,10 @@ def ventana_principal():
     menubar.add_cascade(label="Datos", menu=datosmenu)
     
     buscarmenu = Menu(menubar, tearoff=0)
-    # buscarmenu.add_command(label="Editorial", command=buscar_titulo_sinopsis)
+    buscarmenu.add_command(label="Editorial", command=buscar_editorial)
     buscarmenu.add_command(label="Rango de precios", command=buscar_precio)
-    # buscarmenu.add_command(label="Género y Título", command=buscar_fecha)
-    # buscarmenu.add_command(label="Eliminar por fecha", command=modificar_fecha)
+    buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
+    buscarmenu.add_command(label="Eliminar por fecha", command=eliminar_por_fecha)
     # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=modificar_fecha)
     # buscarmenu.add_command(label="Título o Sinopsis", command=modificar_fecha)
     
