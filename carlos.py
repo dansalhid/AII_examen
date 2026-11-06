@@ -11,6 +11,7 @@ from whoosh.index import create_in,open_dir
 from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, NUMERIC
 from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
 from whoosh.query import DateRange, NumericRange
+from whoosh import query
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES")
 
@@ -83,6 +84,24 @@ def almacenar_datos():
         i+=1
     writer.commit()
     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")
+    
+def imprimir_lista(cursor):
+    
+    v = Toplevel()
+    v.title("JUEGOS DE MESA")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for row in cursor:
+        lb.insert(END,row['titulo'])
+        lb.insert(END,"    Sinopsis: "+ str(row['sinopsis']))
+        lb.insert(END,"    Fecha: "+ datetime.strftime(row['fecha'], "%d/%m/%Y"))
+        lb.insert(END,"    Generos: "+ str(row['generos']))
+        lb.insert(END,"    Editorial: "+ str(row['editorial']))
+        lb.insert(END, "    Precio: " + str(row['precio']))
+        lb.insert(END,"\n\n")
+    lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
 
 #apartado a.
 def buscar_editorial():
@@ -232,7 +251,7 @@ def buscar_generos_y_titulo():
             query = QueryParser("generos", ix.schema).parse('"'+entrada+'"')
             results = searcher.search(query,limit=20)
             if len(results) == 0:
-                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
+                messagebox.showerror(title="Error",message="No se han encontrado resultados para el género especificado.")   
             else:
                 imprimir_lista(results)           
                 
@@ -273,7 +292,38 @@ def buscar_por_sinopsis_precio_mas_barato():
     en = Entry(v, width=75)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
+
+def buscar_generos_y_titulo():
+    def mostrar_lista():    
+        with ix.searcher() as searcher:
+            entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
+            
+            query = MultifieldParser(["generos", "titulo"], ix.schema).parse(entrada)
+            results = searcher.search(query,limit=None)
+            imprimir_lista(results)
+                
+    v = Toplevel()
+    v.title("Búsqueda por Título o género")
+    l = Label(v, text="Seleccione el género a buscar:")
+    l.pack(side=LEFT)
     
+    ix=open_dir("Index")      
+    with ix.searcher() as searcher:
+        #lista de todas las categorias disponibles en el campo de caracteristicas
+        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('generos')]
+    
+    en = Spinbox(v, values=lista_caracteristicas, state="readonly")
+    en.pack(side=LEFT)
+        
+    l1 = Label(v, text="Escriba frase del título o introducción:")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
+    
+
 def buscar_titulo_sinopsis():
     def mostrar_lista(event):
         #abrimos el índice
@@ -309,12 +359,24 @@ def buscar_titulo_sinopsis():
     en.pack(side=LEFT)
 
 def ventana_principal():
-        
+    def listar_todo():
+            ix=open_dir("Index")
+            with ix.searcher() as searcher:
+                results = searcher.search(query.Every(),limit=None)
+                imprimir_lista(results)
+    
+    def listar_juegos_recientes():
+        ix=open_dir("Index")
+        with ix.searcher() as searcher:
+            results = searcher.search(query.Every(),limit=6, sortedby="fecha", reverse=True)
+            imprimir_lista(results)
     root = Tk()
     menubar = Menu(root)
     
     datosmenu = Menu(menubar, tearoff=0)
     datosmenu.add_command(label="Cargar", command=cargar)
+    datosmenu.add_command(label="Listar todo", command=listar_todo)
+    datosmenu.add_command(label="Listar juegos recientes", command=listar_juegos_recientes)
     datosmenu.add_separator()   
     datosmenu.add_command(label="Salir", command=root.quit)
     
@@ -326,7 +388,7 @@ def ventana_principal():
     buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
     buscarmenu.add_command(label="Eliminar por fecha", command=eliminar_por_fecha)
     buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=buscar_por_sinopsis_precio_mas_barato)
-    # buscarmenu.add_command(label="Título o Sinopsis", command=modificar_fecha)
+    buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_sinopsis)
     
     menubar.add_cascade(label="Buscar", menu=buscarmenu)
         
