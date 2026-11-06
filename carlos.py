@@ -134,11 +134,12 @@ def buscar_editorial():
  
     b =Button(v, text="Buscar", command=mostrar_lista)
     b.pack(side=LEFT)
-    
+
+#apartado b.
 def buscar_precio():
     def mostrar_lista(event):
         if not re.match(r"\d{2}\.\d{2}-\d{2}\.\d{2}", en.get()):
-            messagebox.showinfo("Error", "Formato de precos incorrecto. Debe ser: 00.00-00.00")
+            messagebox.showinfo("Error", "Formato de precios incorrecto. Debe ser: 00.00-00.00")
             return
         ix=open_dir("Index")      
         with ix.searcher() as searcher:
@@ -167,20 +168,21 @@ def buscar_precio():
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
     
-
+#apartado d.
 def eliminar_por_fecha():
     def modificar(event):
         if not re.fullmatch(r"\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}", en.get()):
             messagebox.showinfo("Error", "Formato de fechas incorrecto. Debe ser: DD-MM-AAAA DD-MM-AAAA")
             return
-        aux = en.get().split(" ")
-        fecha_inicial = datetime.strftime(datetime.strptime(aux[0], "%d-%m-%Y"), "%d-%m-%Y")
-        fecha_final = datetime.strftime(datetime.strptime(aux[1], "%d-%m-%Y"), "%d-%m-%Y")
-        fecha_inicial = datetime.strptime(fecha_inicial, "%d-%m-%Y")
-        fecha_final = datetime.strptime(fecha_final, "%d-%m-%Y")
+        ix=open_dir("Index")
+        s = re.compile('(\d{2})-(\d{2})-(\d{4})\s+(\d{2})-(\d{2})-(\d{4})').match(str(en.get()))        
+        ix = open_dir("Index")
+        if s:
+            fecha_i = s.group(3)+s.group(2)+s.group(1)
+            fecha_f = s.group(6)+s.group(5)+s.group(4)
         ix = open_dir("Index")
         with ix.searcher() as searcher:
-            query = DateRange("fecha",fecha_inicial, datetime.combine(fecha_final.date(), datetime.max.time()), startexcl=False, endexcl=False)
+            query = QueryParser("fecha", ix.schema).parse('['+fecha_i+' TO '+fecha_f+']')
             results = searcher.search(query, limit=None)
 
             if len(results) > 0:
@@ -197,7 +199,7 @@ def eliminar_por_fecha():
                     lb.insert(END, '')
                 respuesta = messagebox.askyesno(
                     title="Confirmar",
-                    message="¿Está seguro que quiere eliminar estos estrenos?")
+                    message=f"¿Está seguro que quiere eliminar los {len(results)} juegos seleccionados?")
                 if respuesta:
                     writer = ix.writer()
                     writer.delete_by_query(query)
@@ -208,12 +210,13 @@ def eliminar_por_fecha():
 
     v = Toplevel()
     v.title("Eliminar Estrenos por Fecha")
-    l = Label(v, text="Introduzca fechas (DD-MM-AAAA-DD-MM-AAAA):")
+    l = Label(v, text="Introduzca fechas (DD-MM-AAAA DD-MM-AAAA):")
     l.pack(side=LEFT)
     en = Entry(v, width=75)
     en.bind("<Return>", modificar)
     en.pack(side=LEFT)
 
+#apartado c.
 #Al pulsar Enter no funciona, hay que darle al botón de buscar.
 def buscar_generos_y_titulo():
     def mostrar_lista(event):
@@ -235,7 +238,8 @@ def buscar_generos_y_titulo():
     en = Entry(v, width=75)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
-    
+
+#apartado e.    
 def buscar_por_sinopsis_precio_mas_barato():
     def mostrar_lista(event):
         ix=open_dir("Index")   
@@ -252,7 +256,9 @@ def buscar_por_sinopsis_precio_mas_barato():
             sc.config(command = lb.yview)
             for r in results: 
                             lb.insert(END,r['titulo'])
-                            lb.insert(END,r['sinopsis'])
+                            lb.insert(END,r['fecha'])
+                            lb.insert(END,r['generos'])
+                            lb.insert(END,r['editorial'])
                             lb.insert(END,r['precio'])
                             lb.insert(END,'')
 
@@ -265,6 +271,7 @@ def buscar_por_sinopsis_precio_mas_barato():
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
 
+#apartado f.
 def buscar_generos_y_titulo():
     def mostrar_lista():    
         with ix.searcher() as searcher:
