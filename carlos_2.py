@@ -10,7 +10,7 @@ from datetime import datetime
 from whoosh.index import create_in,open_dir
 from whoosh.fields import Schema, TEXT, KEYWORD, DATETIME, NUMERIC, ID
 from whoosh.qparser import QueryParser, MultifieldParser
-from whoosh.query import NumericRange, Term
+from whoosh.query import NumericRange
 from datetime import datetime
 from whoosh import qparser, index, query
 
@@ -122,7 +122,7 @@ def almacenar_datos():
          writer.add_document(titulo=str(j[0]), precio=float(j[1]), tematica=str(j[2]), complejidad=str(j[3]), numero_jugadores=str(j[4]), detalles=str(j[5]))   
          i+=1
      writer.commit()
-     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")
+     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")          
 
 def imprimir_lista(cursor):
     v = Toplevel()
@@ -183,7 +183,7 @@ def buscar_tematicas():
     def mostrar_lista():    
         with ix.searcher() as searcher:
             entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
-            query = QueryParser("tematica", ix.schema).parse(entrada)
+            query = QueryParser("tematicas", ix.schema).parse(entrada)
             results = searcher.search(query,limit=10)
             imprimir_lista(results)
     
@@ -195,7 +195,7 @@ def buscar_tematicas():
     ix=open_dir("Index")      
     with ix.searcher() as searcher:
         #lista de todas las categorias disponibles en el campo de caracteristicas
-        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('tematica')]
+        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('tematicas')]
     
     en = Spinbox(v, values=lista_caracteristicas, state="readonly")
     en.pack(side=LEFT)
@@ -224,8 +224,8 @@ def buscar_jugadores():
     def mostrar_lista(event):
         ix=open_dir("Index")   
         with ix.searcher() as searcher:
-            consulta = Term("numero_jugadores", en.get().strip())
-            results = searcher.search(consulta, limit=None)
+            query = QueryParser("jugadores", ix.schema).parse(str(en.get()))
+            results = searcher.search(query,limit=10)
             imprimir_lista(results)
 
     v = Toplevel()
