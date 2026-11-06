@@ -55,6 +55,24 @@ def extraer_juegos():
 
     return lista
 
+def imprimir_lista(cursor):
+    v = Toplevel()
+    v.title("RECETAS DE COCINA DE RECETAS GRATIS")
+    sc = Scrollbar(v)
+    sc.pack(side=RIGHT, fill=Y)
+    lb = Listbox(v, width = 150, yscrollcommand=sc.set)
+    for r in cursor:
+        lb.insert(END,r['titulo'])
+        lb.insert(END,r['sinopsis'])
+        lb.insert(END,r['fecha'])
+        lb.insert(END,r['generos'])
+        lb.insert(END,r['editorial'])
+        lb.insert(END,r['precio'])
+        lb.insert(END,'')
+        lb.insert(END,"\n\n")
+    lb.pack(side=LEFT,fill=BOTH)
+    sc.config(command = lb.yview)
+
 def almacenar_datos():
     
     #define el esquema de la información
@@ -90,22 +108,7 @@ def buscar_editorial():
             entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
             query = QueryParser("editorial", ix.schema).parse(entrada)
             results = searcher.search(query,limit=15)
-            v = Toplevel()
-            v.title("Listado de juegos")
-            v.geometry('800x150')
-            sc = Scrollbar(v)
-            sc.pack(side=RIGHT, fill=Y)
-            lb = Listbox(v, yscrollcommand=sc.set)
-            lb.pack(side=BOTTOM, fill = BOTH)
-            sc.config(command = lb.yview)
-            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
-            for r in results: 
-                lb.insert(END,r['titulo'])
-                lb.insert(END,r['fecha'])
-                lb.insert(END,r['generos'])
-                lb.insert(END,r['editorial'])
-                lb.insert(END,r['precio'])
-                lb.insert(END,'')
+            imprimir_lista(results)
     
     v = Toplevel()
     v.title("Búsqueda por caracteristicas y Título")
@@ -160,40 +163,34 @@ def buscar_precio():
     
 #apartado c.
 def buscar_generos_y_titulo():
-    def mostrar_lista(event):
-        ix=open_dir("Index")
+    def mostrar_lista():    
         with ix.searcher() as searcher:
-            entrada = en.get().strip().lower()
-            query = QueryParser("generos", ix.schema).parse('"'+entrada+'"')
-            results = searcher.search(query,limit=20)
-            if len(results) == 0:
-                messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
-            else:
-                v = Toplevel()
-                v.title("Listado de juegos")
-                v.geometry('800x150')
-                sc = Scrollbar(v)
-                sc.pack(side=RIGHT, fill=Y)
-                lb = Listbox(v, yscrollcommand=sc.set)
-                lb.pack(side=BOTTOM, fill = BOTH)
-                sc.config(command = lb.yview)
-                #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
-                for r in results: 
-                    lb.insert(END,r['titulo'])
-                    lb.insert(END,r['fecha'])
-                    lb.insert(END,r['generos'])
-                    lb.insert(END,r['editorial'])
-                    lb.insert(END,r['precio'])
-                    lb.insert(END,'')           
+            entrada = '"'+str(en.get())+'"' #se ponen comillas porque hay categorías con más de una palabra
+            
+            query = MultifieldParser(["generos", "titulo"], ix.schema).parse(entrada)
+            results = searcher.search(query,limit=None)
+            imprimir_lista(results)
                 
     v = Toplevel()
-    v.title("Búsqueda por Título o Introducción")
+    v.title("Búsqueda por Título o género")
+    l = Label(v, text="Seleccione el género a buscar:")
+    l.pack(side=LEFT)
+    
+    ix=open_dir("Index")      
+    with ix.searcher() as searcher:
+        #lista de todas las categorias disponibles en el campo de caracteristicas
+        lista_caracteristicas = [i.decode('utf-8') for i in searcher.lexicon('generos')]
+    
+    en = Spinbox(v, values=lista_caracteristicas, state="readonly")
+    en.pack(side=LEFT)
         
     l1 = Label(v, text="Escriba frase del título o introducción:")
     l1.pack(side=LEFT)
     en = Entry(v, width=75)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
     
 def buscar_titulo_sinopsis():
     def mostrar_lista(event):
@@ -206,17 +203,15 @@ def buscar_titulo_sinopsis():
             query = MultifieldParser(["titulo","sinopsis"], ix.schema, group=OrGroup).parse(str(en.get()))
             #llamamos a la función search del searcher, pasándole como parámetro la consulta creada
             results = searcher.search(query,limit=3) #sólo devuelve los 3 primeros
-            #recorremos los resultados obtenidos(es una lista de diccionarios) y mostramos lo solicitado
             v = Toplevel()
-            v.title("Listado de juegos")
+            v.title("Listado de Juegos por Precio")
             v.geometry('800x150')
             sc = Scrollbar(v)
             sc.pack(side=RIGHT, fill=Y)
             lb = Listbox(v, yscrollcommand=sc.set)
             lb.pack(side=BOTTOM, fill = BOTH)
             sc.config(command = lb.yview)
-            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
-            for r in results: 
+            for r in results:
                 lb.insert(END,r['titulo'])
                 lb.insert(END,r['sinopsis'])
                 lb.insert(END,'')
@@ -225,9 +220,13 @@ def buscar_titulo_sinopsis():
     v.title("Busqueda por Título o Sinopsis")
     l = Label(v, text="Introduzca las palabras a buscar:")
     l.pack(side=LEFT)
+    
     en = Entry(v)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
+    
+    b =Button(v, text="Buscar", command=mostrar_lista)
+    b.pack(side=LEFT)
 
 def ventana_principal():
         
@@ -244,7 +243,7 @@ def ventana_principal():
     buscarmenu = Menu(menubar, tearoff=0)
     buscarmenu.add_command(label="Editorial", command=buscar_editorial)
     buscarmenu.add_command(label="Rango de precios", command=buscar_precio)
-    # buscarmenu.add_command(label="Género y Título", command=buscar_fecha)
+    buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
     # buscarmenu.add_command(label="Eliminar por fecha", command=modificar_fecha)
     # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=modificar_fecha)
     buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_sinopsis)
