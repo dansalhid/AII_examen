@@ -8,7 +8,7 @@ from tkinter import messagebox
 import re, os, shutil
 from datetime import datetime
 from whoosh.index import create_in,open_dir
-from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, ID
+from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, NUMERIC
 from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
 
 # lineas para evitar error SSL
@@ -16,6 +16,11 @@ import os, ssl
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
 getattr(ssl, '_create_unverified_context', None)):
     ssl._create_default_https_context = ssl._create_unverified_context
+    
+def cargar():
+    respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
+    if respuesta:
+        almacenar_datos()
 
 def extraer_juegos():
     
@@ -71,3 +76,4 @@ def almacenar_datos():
         i+=1
     writer.commit()
     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")
+    
