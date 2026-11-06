@@ -10,7 +10,7 @@ from datetime import datetime
 from whoosh.index import create_in,open_dir
 from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, NUMERIC
 from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
-from whoosh.query import DateRange
+from whoosh.query import DateRange, NumericRange
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES")
 
@@ -245,6 +245,35 @@ def buscar_generos_y_titulo():
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
     
+def buscar_por_sinopsis_precio_mas_barato():
+    def mostrar_lista(event):
+        ix=open_dir("Index")   
+        with ix.searcher() as searcher:
+            query = QueryParser("sinopsis", ix.schema).parse('"'+str(en.get())+'"')
+            results = searcher.search(query,limit=1, sortedby="precio")
+            v = Toplevel()
+            v.title("Listado de Películas")
+            v.geometry('800x150')
+            sc = Scrollbar(v)
+            sc.pack(side=RIGHT, fill=Y)
+            lb = Listbox(v, yscrollcommand=sc.set)
+            lb.pack(side=BOTTOM, fill = BOTH)
+            sc.config(command = lb.yview)
+            for r in results: 
+                            lb.insert(END,r['titulo'])
+                            lb.insert(END,r['sinopsis'])
+                            lb.insert(END,r['precio'])
+                            lb.insert(END,'')
+
+    v = Toplevel()
+    v.title("Búsqueda por Título o Introducción")
+        
+    l1 = Label(v, text="Escriba frase de los detalles")
+    l1.pack(side=LEFT)
+    en = Entry(v, width=75)
+    en.bind("<Return>", mostrar_lista)
+    en.pack(side=LEFT)
+    
 def buscar_titulo_sinopsis():
     def mostrar_lista(event):
         #abrimos el índice
@@ -296,7 +325,7 @@ def ventana_principal():
     buscarmenu.add_command(label="Rango de precios", command=buscar_precio)
     buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
     buscarmenu.add_command(label="Eliminar por fecha", command=eliminar_por_fecha)
-    # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=modificar_fecha)
+    buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=buscar_por_sinopsis_precio_mas_barato)
     # buscarmenu.add_command(label="Título o Sinopsis", command=modificar_fecha)
     
     menubar.add_cascade(label="Buscar", menu=buscarmenu)
