@@ -10,6 +10,7 @@ from datetime import datetime
 from whoosh.index import create_in,open_dir
 from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, NUMERIC
 from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
+from whoosh.query import DateRange
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES")
 
@@ -157,51 +158,70 @@ def buscar_precio():
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
     
+
 def eliminar_por_fecha():
     def modificar(event):
         if not re.fullmatch(r"\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{4}", en.get()):
-            messagebox.showinfo("Error","Formato de fechas incorrecto. Debe ser: DD-MM-AAAA-DD-MM-AAAA"
-    )
-    return
-
-    aux = en.get().split("-")
-
-    fecha_inicial = "-".join(aux[0:3])
-    fecha_final = "-".join(aux[3:6])
-
-    rango_fecha = '[' + fecha_inicial + ' TO ' + fecha_final + ']'
-        ix=open_dir("Index") 
+            messagebox.showinfo(
+                "Error",
+                "Formato de fechas incorrecto. Debe ser: DD-MM-AAAA-DD-MM-AAAA"
+            )
+            return
+        aux = en.get().split("-")
+        fecha_inicial = "-".join(aux[0:3])
+        fecha_final = "-".join(aux[3:6])
+        fecha_inicial = datetime.strptime(fecha_inicial, "%d-%m-%Y")
+        fecha_final = datetime.strptime(fecha_final, "%d-%m-%Y")
+        ix = open_dir("Index")
         with ix.searcher() as searcher:
-            query = QueryParser("fecha", ix.schema).parse(str(en.get()))
+            query = DateRange("fecha",fecha_inicial, datetime.combine(fecha_final.date(), datetime.max.time()), startexcl=False, endexcl=False)
             results = searcher.search(query, limit=None)
-            if len(results) > 0: # si hay algún documento a borrar 
+
+            if len(results) > 0:
                 v = Toplevel()
                 v.title("Listado de Estrenos a Borrar")
-                v.geometry('800x150')
+                v.geometry('800x300')
+
                 sc = Scrollbar(v)
                 sc.pack(side=RIGHT, fill=Y)
+
                 lb = Listbox(v, yscrollcommand=sc.set)
-                lb.pack(side=BOTTOM, fill = BOTH)
-                sc.config(command = lb.yview)
+                lb.pack(side=BOTTOM, fill=BOTH, expand=True)
+
+                sc.config(command=lb.yview)
+
                 for r in results:
-                    lb.insert(END,r['titulo'])
-                    lb.insert(END,'')
-                # pedimos confirmación
-                respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere eliminar estos estrenos?")
+                    lb.insert(END, r['titulo'])
+                    lb.insert(END, '')
+
+                respuesta = messagebox.askyesno(
+                    title="Confirmar",
+                    message="¿Está seguro que quiere eliminar estos estrenos?"
+                )
+
                 if respuesta:
                     writer = ix.writer()
                     writer.delete_by_query(query)
                     writer.commit()
+
+                    messagebox.showinfo("Aviso", "Estrenos eliminados correctamente.")
+
             else:
-                messagebox.showinfo("AVISO", "No hay ningun estreno con esas palabras en la sinopsis")
+                messagebox.showinfo(
+                    "AVISO",
+                    "No hay ningún estreno en ese rango de fechas."
+                )
 
     v = Toplevel()
     v.title("Eliminar Estrenos por Fecha")
-    l = Label(v, text="Introduzca fecha:")
+
+    l = Label(v, text="Introduzca fechas (DD-MM-AAAA-DD-MM-AAAA):")
     l.pack(side=LEFT)
+
     en = Entry(v, width=75)
     en.bind("<Return>", modificar)
     en.pack(side=LEFT)
+
 
 
 def buscar_generos_y_titulo():
