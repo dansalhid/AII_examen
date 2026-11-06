@@ -192,6 +192,68 @@ def buscar_generos_y_titulo():
     b =Button(v, text="Buscar", command=mostrar_lista)
     b.pack(side=LEFT)
     
+    
+#apartado d.
+def eliminar_por_fecha():
+    def modificar(event):
+        ix=open_dir("Index")
+        s = re.compile('(\d{2})-(\d{2})-(\d{4})\s+(\d{2})-(\d{2})-(\d{4})').match(str(en.get()))        
+        ix = open_dir("Index")
+        if s:
+            fecha_i = s.group(3)+s.group(2)+s.group(1)
+            fecha_f = s.group(6)+s.group(5)+s.group(4)
+            with ix.searcher() as searcher:
+                query = QueryParser("fecha", ix.schema).parse('['+fecha_i+' TO '+fecha_f+']')
+                results = searcher.search(query, limit=None)
+
+                if len(results) > 0:
+                    v = Toplevel()
+                    v.title("Listado de Estrenos a Borrar")
+                    v.geometry('800x300')
+
+                    sc = Scrollbar(v)
+                    sc.pack(side=RIGHT, fill=Y)
+
+                    lb = Listbox(v, yscrollcommand=sc.set)
+                    lb.pack(side=BOTTOM, fill=BOTH, expand=True)
+
+                    sc.config(command=lb.yview)
+
+                    for r in results:
+                        lb.insert(END, r['titulo'])
+                        lb.insert(END, '')
+
+                    respuesta = messagebox.askyesno(
+                        title="Confirmar",
+                        message="¿Está seguro que quiere eliminar estos estrenos?"
+                    )
+
+                    if respuesta:
+                        writer = ix.writer()
+                        writer.delete_by_query(query)
+                        writer.commit()
+
+                        messagebox.showinfo("Aviso", "Estrenos eliminados correctamente.")
+
+                else:
+                    messagebox.showinfo(
+                        "AVISO",
+                        "No hay ningún estreno en ese rango de fechas."
+                    )
+        else:
+            messagebox.showerror("ERROR", "formato de rango de fechas incorrecto DD/MM/AAAA DD/MM/AAAA")
+
+    v = Toplevel()
+    v.title("Eliminar Estrenos por Fecha")
+
+    l = Label(v, text="Introduzca fechas (DD-MM-AAAA-DD-MM-AAAA):")
+    l.pack(side=LEFT)
+
+    en = Entry(v, width=75)
+    en.bind("<Return>", modificar)
+    en.pack(side=LEFT)
+
+#apartado f.
 def buscar_titulo_sinopsis():
     def mostrar_lista(event):
         #abrimos el índice
@@ -244,7 +306,7 @@ def ventana_principal():
     buscarmenu.add_command(label="Editorial", command=buscar_editorial)
     buscarmenu.add_command(label="Rango de precios", command=buscar_precio)
     buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
-    # buscarmenu.add_command(label="Eliminar por fecha", command=modificar_fecha)
+    buscarmenu.add_command(label="Eliminar por fecha", command=eliminar_por_fecha)
     # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=modificar_fecha)
     buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_sinopsis)
     
