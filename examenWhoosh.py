@@ -7,17 +7,22 @@ from tkinter import *
 from tkinter import messagebox
 import re, os, shutil
 from datetime import datetime
-from whoosh import query
 from whoosh.index import create_in,open_dir
-from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, ID
+from whoosh.fields import Schema, TEXT, DATETIME, KEYWORD, NUMERIC
 from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
-from whoosh.query import NumericRange
+import locale
+locale.setlocale(locale.LC_TIME, "es_ES")
 
 # lineas para evitar error SSL
 import os, ssl
 if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
 getattr(ssl, '_create_unverified_context', None)):
     ssl._create_default_https_context = ssl._create_unverified_context
+    
+def cargar():
+    respuesta = messagebox.askyesno(title="Confirmar",message="Esta seguro que quiere recargar los datos. \nEsta operación puede ser lenta")
+    if respuesta:
+        almacenar_datos()
 
 def extraer_juegos():
     
@@ -33,6 +38,8 @@ def extraer_juegos():
             titulo = i.find('h2', class_='entry-title').a.string.replace(" – Reseña","")
             sinopsis = i.find('div', class_='entry-content').p.string
             fecha = i.find('div', class_='post-info-date').string
+            fecha2 = datetime.strptime(fecha, "%d %B, %Y")
+            print(fecha2)
             enlace = i.find('h2', class_='entry-title').a['href']
             req = urllib.request.Request(enlace, headers={'User-Agent': 'Mozilla/5.0'})
             f1 = urllib.request.urlopen(req)
@@ -40,9 +47,11 @@ def extraer_juegos():
             generos = s1.table.find('td',string='Género:').find_next_sibling('td').stripped_strings
             generos = ",".join([str(e) for e in generos])
             editorial = s1.table.find('td',string='Editorial:').find_next_sibling('td').text
-            precio = s1.table.find('td',string=re.compile('Precio recomendado')).find_next_sibling('td').a.string.replace("€","")
+            precio = s1.table.find('td',string=re.compile('Precio recomendado')).find_next_sibling('td').a.string.replace("€","").replace(",",".")
+            print(precio)
 
-            lista.append((titulo,sinopsis,fecha,generos,editorial,precio))
+            lista.append((titulo,sinopsis,fecha2,generos,editorial,precio))
+            
 
     return lista
 
@@ -54,7 +63,7 @@ def almacenar_datos():
                    fecha=DATETIME(stored=True),
                    generos=KEYWORD(stored=True,commas=True,lowercase=True),
                    editorial=TEXT(stored=True,phrase=False),
-                   precio=NUMERIC(stored=True,numtype=float, decimal_places=2))
+                   precio=NUMERIC(stored=True,numtype=float))
 
     #eliminamos el directorio del índice, si existe
     if os.path.exists("Index"):
@@ -73,7 +82,6 @@ def almacenar_datos():
         i+=1
     writer.commit()
     messagebox.showinfo("Fin de indexado", "Se han indexado "+str(i)+ " juegos")
-
 
 #apartado a.
 def buscar_editorial():
@@ -115,40 +123,38 @@ def buscar_editorial():
     b =Button(v, text="Buscar", command=mostrar_lista)
     b.pack(side=LEFT)
 
-#apartado b.
-def buscar_rango_precios():
+# apartado b.
+def buscar_precio():
     def mostrar_lista(event):
-        ix=open_dir("Index")   
+        #comprobamos el formato de la entrada
+        if not re.match(r"\d{2}\.\d{2}-\d{2}\.\d{2}", en.get()):
+            messagebox.showinfo("Error", "Formato de precos incorrecto. Debe ser: 00.00-00.00")
+            return
+        ix=open_dir("Index")      
         with ix.searcher() as searcher:
-            s = re.compile('(\d{2}).(\d{2})-+(\d{2}).(\d{2})').match(str(en.get()))
-            if s:
-                precio_inicio = s.group(2)+s.group(1)
-                precio_final = s.group(4)+s.group(3)
-            query = NumericRange("precio", float(precio_inicio),float(precio_final), endexcl=True)
-            results = searcher.search(query,limit=10)
+            
+            aux = en.get().split("-")
+            rango_precio = '['+ aux[0] + ' TO ' + aux[1] +']'
+            query = QueryParser("precio", ix.schema).parse(rango_precio)
+            results = searcher.search(query,limit=None) #devuelve todos los resultados
             v = Toplevel()
-            v.title("Listado de juegos")
+            v.title("Listado de Juegos por Precio")
             v.geometry('800x150')
             sc = Scrollbar(v)
             sc.pack(side=RIGHT, fill=Y)
             lb = Listbox(v, yscrollcommand=sc.set)
             lb.pack(side=BOTTOM, fill = BOTH)
             sc.config(command = lb.yview)
-            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
-            for r in results: 
+            for r in results:
                 lb.insert(END,r['titulo'])
-                lb.insert(END,r['fecha'])
-                lb.insert(END,r['generos'])
-                lb.insert(END,r['editorial'])
                 lb.insert(END,r['precio'])
                 lb.insert(END,'')
-
+    
     v = Toplevel()
-    v.title("Búsqueda por Título o Introducción")
-        
-    l1 = Label(v, text="Escriba frase de los detalles")
-    l1.pack(side=LEFT)
-    en = Entry(v, width=75)
+    v.title("Busqueda por Precio")
+    l = Label(v, text="Introduzca rango de precios 00.00-00.00:")
+    l.pack(side=LEFT)
+    en = Entry(v)
     en.bind("<Return>", mostrar_lista)
     en.pack(side=LEFT)
     
@@ -163,7 +169,22 @@ def buscar_generos_y_titulo():
             if len(results) == 0:
                 messagebox.showerror(title="Error",message="¿Qué es Vinland?")   
             else:
-                imprimir_lista(results)           
+                v = Toplevel()
+                v.title("Listado de juegos")
+                v.geometry('800x150')
+                sc = Scrollbar(v)
+                sc.pack(side=RIGHT, fill=Y)
+                lb = Listbox(v, yscrollcommand=sc.set)
+                lb.pack(side=BOTTOM, fill = BOTH)
+                sc.config(command = lb.yview)
+                #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
+                for r in results: 
+                    lb.insert(END,r['titulo'])
+                    lb.insert(END,r['fecha'])
+                    lb.insert(END,r['generos'])
+                    lb.insert(END,r['editorial'])
+                    lb.insert(END,r['precio'])
+                    lb.insert(END,'')           
                 
     v = Toplevel()
     v.title("Búsqueda por Título o Introducción")
@@ -178,7 +199,7 @@ def buscar_titulo_sinopsis():
     def mostrar_lista(event):
         #abrimos el índice
         ix=open_dir("Index")
-        #creamos un searcher en el índice    
+        #creamos un searcher en el índice
         with ix.searcher() as searcher:
             #se crea la consulta: buscamos en los campos "titulo" o "sinopsis" alguna de las palabras que hay en el Entry "en"
             #se usa la opción OrGroup para que use el operador OR por defecto entre palabras, en lugar de AND
@@ -209,31 +230,8 @@ def buscar_titulo_sinopsis():
     en.pack(side=LEFT)
 
 def ventana_principal():
-    def listar_todo():
-        ix=open_dir("Index")
-        with ix.searcher() as searcher:
-            results = searcher.search(query.Every(),limit=None)
-            v = Toplevel()
-            v.title("Listado de juegos")
-            v.geometry('800x150')
-            sc = Scrollbar(v)
-            sc.pack(side=RIGHT, fill=Y)
-            lb = Listbox(v, yscrollcommand=sc.set)
-            lb.pack(side=BOTTOM, fill = BOTH)
-            sc.config(command = lb.yview)
-            #Importante: el diccionario solo contiene los campos que han sido almacenados(stored=True) en el Schema
-            for r in results: 
-                lb.insert(END,r['titulo'])
-                lb.insert(END,r['sinopsis'])
-                lb.insert(END,r['fecha'])
-                lb.insert(END,r['generos'])
-                lb.insert(END,r['editorial'])
-                lb.insert(END,r['precio'])
-                lb.insert(END,'')
-          
+        
     root = Tk()
-    root.geometry("150x100")
-
     menubar = Menu(root)
     
     datosmenu = Menu(menubar, tearoff=0)
@@ -245,10 +243,10 @@ def ventana_principal():
     
     buscarmenu = Menu(menubar, tearoff=0)
     buscarmenu.add_command(label="Editorial", command=buscar_editorial)
-    buscarmenu.add_command(label="Rango de Precios", command=buscar_rango_precios)
-    buscarmenu.add_command(label="Género y Título", command=buscar_generos_y_titulo)
-    # buscarmenu.add_command(label="Eliminar por fecha", command=buscar_jugadores)
-    # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=buscar_jugadores)
+    buscarmenu.add_command(label="Rango de precios", command=buscar_precio)
+    # buscarmenu.add_command(label="Género y Título", command=buscar_fecha)
+    # buscarmenu.add_command(label="Eliminar por fecha", command=modificar_fecha)
+    # buscarmenu.add_command(label="Sinopsis y Precio más bajo", command=modificar_fecha)
     buscarmenu.add_command(label="Título o Sinopsis", command=buscar_titulo_sinopsis)
     
     menubar.add_cascade(label="Buscar", menu=buscarmenu)
